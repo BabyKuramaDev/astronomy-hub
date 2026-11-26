@@ -523,9 +523,21 @@ Los evals comparan el expediente de cada estrella contra etiquetas sacadas de ca
 
 Lo arma `evals/build_set.py` consultando los catálogos; nunca a mano ni de memoria.
 
+**Dónde viven las etiquetas.** Ni las etiquetas ni la lista de qué estrella pertenece a qué grupo están en este repo, que se monta en el sandbox. Viven en `~/Code/astronomy-hub-evals` (configurable con `HUB_EVALS_DIR`), una carpeta local fuera del repo con su propio git, sin remote: `sets/<set_id>/set.json` (TIC, grupo, partición, período y profundidad de catálogo), `sets/<set_id>/snapshot/` (las respuestas crudas de cada consulta, con fecha, consulta, semilla y commit de `build_set.py`) y `results/` (detalle por estrella). `build_set.py --from-snapshot` reconstruye el mismo `set.json` byte por byte desde la foto, y cada resultado registra el `sha256` canónico del set. En este repo, `evals/results/` guarda solo tablas agregadas por grupo, sin TICs.
+
+**Filtros de `build_set`** (semilla fija; los candidatos se barajan desde la lista ordenada por TIC):
+
+- Etiquetas de las tablas `toi` y `pscomppars` del NASA Exoplanet Archive (que replica la lista TOI de ExoFOP) y de las CTOI de ExoFOP.
+- Un solo TOI en la estrella, ningún otro planeta en `pscomppars` y ninguna CTOI.
+- Período entre `period_min_days` y `period_max_days` de la misión.
+- Sectores SPOC de 120 s disponibles, elegidos por la regla de la misión y verificados en la lista de productos de MAST (existe el `_lc.fits`), con al menos `min_transits` tránsitos esperados en la línea de base elegida.
+- Planetas: disposición `CP` con nombre `TOI-…` (los `KP` suelen ser planetas conocidos antes de TESS, con nombres famosos). Falsos positivos: `FP` o `FA`. Sin señal: objetivos de 120 s de un sector reciente sin TOI de ninguna disposición, sin planeta y sin CTOI.
+- WASP-18 queda afuera.
+- Partición estratificada: 12/8 planetas (mitad profundos), 12/8 falsos positivos y 6/4 sin señal.
+
 | Grupo | Cantidad | De dónde sale la etiqueta | Resultado esperado |
 | --- | --- | --- | --- |
-| Planetas confirmados | 20 | Lista TOI de ExoFOP con disposición de planeta confirmado o conocido | Señal con período dentro del 1% y veredicto `candidate` |
+| Planetas confirmados | 20 | Lista TOI con disposición `CP` (ver filtros) | Señal con período dentro del 1% y veredicto `candidate` |
 | Falsos positivos | 20 | Lista TOI de ExoFOP con disposición de falso positivo | Veredicto `false_positive` |
 | Sin señal conocida | 10 | Estrellas observadas por TESS sin TOI ni planeta | `no_signal`; una detección se revisa a mano, no cuenta como error |
 
@@ -536,8 +548,9 @@ Lo arma `evals/build_set.py` consultando los catálogos; nunca a mano ni de memo
 
 **Modo ciego**
 
-- Con `RunMode` en `eval`, solo el Bibliotecario tiene web, y corre después de `decide`: su resultado entra en el reporte pero no en la decisión, que ya quedó escrita. Orden en eval: Buscador, Abogado del diablo, Revisor, `decide`, Bibliotecario, Redactor, `package-dossier`.
-- El sandbox es compartido y cualquier agente con `bash` podría consultar un host permitido. `runtime/` audita por lista blanca: en eval, `summary.json` marca todo comando bash que no sea una tool del repo (`python -m contexts.<contexto>.cli ...`) o una inspección de solo lectura (`ls`, `cat`, `head` y similares).
+- Perfil eval: con `RunMode` en `eval`, la sesión termina en `package-dossier` después de `decide`, sin Bibliotecario ni Redactor, que no entran en ninguna métrica. Orden: Buscador, Abogado del diablo, Revisor, `decide`, `package-dossier`. Corre en el environment `astronomy-hub-eval`, que solo alcanza MAST y su bucket S3 (más los gestores de paquetes que necesita `uv sync`).
+- `RunMode` `full` es la prueba de humo de los seis agentes: decide como eval (a ciegas) y después corren el Bibliotecario y el Redactor (`make hello MODE=full`).
+- El sandbox es compartido y cualquier agente con `bash` podría consultar un host permitido. `runtime/` audita por lista blanca: `summary.json` marca todo comando bash que no sea una tool del repo (`bin/hub`, `bin/setup-sandbox`) o una inspección de solo lectura, y toda lectura (`read`, `glob`, `grep`, o los archivos que lean `cat`, `head` y similares) fuera del expediente y de la documentación de las tools (las skills y `missions/<misión>/mission.yaml`). Una corrida con marcas se informa aparte, no como fallo.
 - El scorer mide sobre lo que escribieron las tools (`signal.json`, `vetting.json`), no sobre el texto de los agentes.
 
 **Métricas por versión**
@@ -551,6 +564,10 @@ Lo arma `evals/build_set.py` consultando los catálogos; nunca a mano ni de memo
 | Inconclusos | Casos con `final` igual a `inconclusive` | Se mide |
 | Costo y duración por estrella | Costo de lista y segundos activos que informa la sesión | Se mide |
 
+Definiciones del scorer (`evals/scorer.py`), por grupo (planetas profundos, planetas chicos, falsos positivos, sin señal) y partición: el recall final exige `candidate` con el período correcto (un `candidate` en otro período se cuenta aparte); falsa alarma es `final = candidate` en una estrella sin señal conocida, y cualquier detección ahí se lista aparte para revisarla a mano. Aparte de la tabla: errores graves (planeta confirmado que sale `false_positive`), alias, corridas contaminadas según la auditoría y estrellas sin datos. Cada resultado lleva costo y tiempo por estrella, versiones de los agentes, commit y hash del set.
+
+**Tres niveles de evals con agentes**, en este orden: `make eval-baseline` corre el pipeline determinista (`scripts/build_dossier.py`, sin LLM) sobre las 50 y es la línea de base; `make eval-pilot` corre 5 estrellas de desarrollo con agentes y compara con la línea de base estrella por estrella (si el agente eligió distinto, si acertó o empeoró); `make eval-dev` corre las 30. El runner es reanudable (no repite una estrella con el mismo set, versiones de agentes, environment y commit), reintenta una vez solo errores de plataforma o de MAST, y corre 3 sesiones en paralelo (la documentación solo limita requests: 300 creaciones y 1200 lecturas por minuto).
+
 Los objetivos son de partida y se recalibran después de la primera corrida. Un período que sea múltiplo o fracción entera del catalogado se informa aparte, como alias.
 
 Como referencia de dificultad, el pipeline de [ahrazzle/exoplanets](https://github.com/ahrazzle/exoplanets) recupera entre 52% y 62% de los tránsitos inyectados con SNR nominal de 10. Los planetas chicos van a rendir bastante menos que los profundos.
@@ -561,7 +578,7 @@ Como referencia de dificultad, el pipeline de [ahrazzle/exoplanets](https://gith
 2. Controles sintéticos de las pruebas de descarte: binarias eclipsantes, glitches de un sector y variables por rotación deben ser rechazadas, y tránsitos inyectados deben pasar. Las curvas invertidas, donde cualquier bajón es ruido, sirven para estimar la tasa de falsas alarmas.
 3. Evals de agentes sobre el set, con `make eval-dev` y `make eval-holdout`.
 
-Cada corrida guarda `evals/results/<fecha>_<git_sha>.json` con las métricas y la versión de cada agente, más una tabla en Markdown para comparar contra la corrida anterior.
+Cada corrida guarda el detalle por estrella en `~/Code/astronomy-hub-evals/results/` y, en este repo, `evals/results/<fecha>_<git_sha>.json` con las métricas agregadas y la versión de cada agente, más una tabla en Markdown para comparar contra la corrida anterior.
 
 ## Plan por hitos
 
