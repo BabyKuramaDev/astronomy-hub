@@ -473,7 +473,7 @@ El hub corre en Claude Managed Agents, que está en beta; `runtime/` encapsula t
 
 **Entorno**
 
-`environment.yaml` no se escribe a mano: lo genera `scripts/build_environment.py` desde `uv.lock` (solo las dependencias de runtime, con `==`; `anthropic` va en el grupo `runtime` y no entra al sandbox), y un test verifica que coincidan. Red `limited` con estos hosts:
+`environment.yaml` no se escribe a mano: lo genera `scripts/build_environment.py` desde `uv.lock`, y un test verifica que coincidan. Como el `python3` del sandbox es 3.11, el environment no instala paquetes: el Director corre `bin/setup-sandbox` al empezar, que crea `.venv` con Python 3.12 desde `uv.lock` (solo las dependencias de runtime; `anthropic` va en el grupo `runtime` y no entra al sandbox), y `bin/hub` corre las tools con ese `.venv`. Las versiones fijadas quedan listadas como comentario en `environment.yaml`. Red `limited` con estos hosts:
 
 - `mast.stsci.edu` y `stpubdata.s3.us-east-1.amazonaws.com`: MAST redirige las descargas de curvas de TESS a S3 (medido con una descarga real).
 - `exoplanetarchive.ipac.caltech.edu` y `exofop.ipac.caltech.edu`: `crossmatch`.
@@ -597,7 +597,7 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 
 - [x] Esquema del bloque `multiagent`: ver la definición del Director en Agentes.
 - [x] Hosts que usa astroquery para bajar datos de TESS: `mast.stsci.edu` y `stpubdata.s3.us-east-1.amazonaws.com` (ver Entorno).
-- [ ] Versión del `python3` por defecto del sandbox y límite de tiempo de un comando bash: se miden con la sesión de prueba de M3. Si el `python3` no es 3.12, las tools corren en un `.venv` creado con `uv sync --frozen` desde `uv.lock`.
+- [x] Medido con la sesión de prueba de M3 (`make probe`, 26 de noviembre de 2026, 0,02 USD): el `python3` por defecto es 3.11.18 (hay 3.12.3 en `/usr/bin/python3.12` y uv 0.8.17), así que el environment no instala paquetes y `bin/setup-sandbox` crea `.venv` con `uv sync --frozen --no-default-groups --python 3.12` en unos 8 segundos. Un comando bash se corta a los **295 segundos** (`command timed out after 295s`).
 - [x] Nombre exacto de la columna de disposición en la lista TOI y sus valores: `tfopwg_disp` en la tabla `toi` del NASA Exoplanet Archive (TAP), con `APC`, `CP`, `FA`, `FP`, `KP`, `PC` o vacío (consultado el 26 de noviembre de 2026). Las CTOI salen del JSON de ExoFOP (`target.php?id=<tic>&json`, clave `ctois`).
 - [x] Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano: sale de la tabla `pscomppars` del NASA Exoplanet Archive y queda, con la consulta y la fecha, en `tests/fixtures/wasp18/reference.json`.
 
@@ -611,6 +611,7 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 - [ ] Qué estrellas explora el Director después de los evals. Propuesta: enanas cercanas de tipo K y M, como los repos de referencia.
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
 - [ ] Objetivos definitivos de los evals, después de la primera corrida.
+- [ ] (M4) El MCMC tarda unos 5 minutos y un comando bash se corta a los 295 segundos: en modo explore, `fit-transit --mode mcmc` no entra en una sola llamada. Opciones: correrlo desacoplado y consultar el resultado, o partir la cadena en tramos con estado en el expediente. En eval no corre.
 - [ ] (M4) Antes de gastar en agentes, correr el pipeline determinista (`make dossier`) sobre todo el set de evals como línea de base: no usa créditos y muestra qué aportan los agentes por encima del script.
 
 **Dudas de M1, resueltas en M2**

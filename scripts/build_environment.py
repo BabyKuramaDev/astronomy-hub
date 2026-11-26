@@ -1,5 +1,10 @@
 """Generate environment.yaml (the Managed Agents environment) from uv.lock.
 
+The sandbox probe (M3) found python3 3.11 by default, so the environment installs no
+pip packages: bin/setup-sandbox builds .venv with Python 3.12 from uv.lock (`uv sync
+--frozen`, about 8 s). The pins below are still derived from the lock and listed as a
+comment, so the file changes whenever the lock does.
+
     uv run python -m scripts.build_environment          # write environment.yaml
     uv run python -m scripts.build_environment --check  # exit 1 if it is out of date
 
@@ -65,15 +70,17 @@ def render(lock: dict) -> str:
     lines = [
         "# Managed Agents environment. Generated from uv.lock by scripts/build_environment.py;",
         "# do not edit by hand (a test checks it). Synced with ant apply.",
+        "# No packages: the default python3 is 3.11, so bin/setup-sandbox runs",
+        "# `uv sync --frozen --no-default-groups --python 3.12`, which installs:",
+        *(f"#   {pin}" for pin in runtime_pins(lock)),
         f"name: {NAME}",
         "config:",
         "  type: cloud",
-        "  packages:",
-        "    pip:",
-        *(f"      - {pin}" for pin in runtime_pins(lock)),
+        "  packages:  # explicitly empty: an omitted field would keep the old packages",
+        "    pip: []",
         "  networking:",
         "    type: limited",
-        "    allow_package_managers: true  # required by packages; also opens PyPI and GitHub",
+        "    allow_package_managers: true  # uv sync reaches PyPI; also opens GitHub",
         "    allow_mcp_servers: false",
         "    allowed_hosts:",
         *(f"      - {host}" for host in ALLOWED_HOSTS),

@@ -23,4 +23,5 @@ def test_environment_shape() -> None:
     assert net["type"] == "limited"
     assert net["allow_package_managers"] is True
     assert "stpubdata.s3.us-east-1.amazonaws.com" in net["allowed_hosts"]
-    assert all("==" in p for p in env["config"]["packages"]["pip"])
+    assert env["config"]["packages"] == {"pip": []}, "python3 is 3.11: setup-sandbox uses uv"
+    assert "#   astropy==" in OUTPUT.read_text()
