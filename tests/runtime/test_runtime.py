@@ -337,3 +337,90 @@ def test_platform_adapter_builds_the_session_request() -> None:
     (repo,) = calls["resources"]
     assert repo["checkout"] == {"type": "commit", "sha": "deadbeef"}
     assert "authorization_token" not in repo
+
+
+@pytest.mark.parametrize(
+    ("command", "outside"),
+    [
+        ("cd /workspace/astronomy-hub && cat workspace/exoplanets/100100827/signal.json", []),
+        ("cd /workspace/astronomy-hub && jq .data workspace/exoplanets/100100827/vetting.json", []),
+        ("cat /workspace/skills/hub-vetting/SKILL.md", []),
+        ("cd /workspace/astronomy-hub && grep -n -A15 det missions/exoplanets/mission.yaml", []),
+        (
+            "cd /workspace/astronomy-hub && cat tests/fixtures/wasp18/reference.json",
+            ["/workspace/astronomy-hub/tests/fixtures/wasp18/reference.json"],
+        ),
+        ("cd /workspace/astronomy-hub && ls", ["/workspace/astronomy-hub"]),
+        (
+            "cd /workspace/astronomy-hub && grep -n -i 'valid' bin/hub",
+            ["/workspace/astronomy-hub/bin/hub"],
+        ),
+        (
+            "cd /workspace/astronomy-hub/workspace/exoplanets && ls",
+            ["/workspace/astronomy-hub/workspace/exoplanets"],
+        ),
+        ("cd /workspace/astronomy-hub && head -c 400 workspace/exoplanets/100100827/log.jsonl", []),
+        ("cd /workspace/astronomy-hub && bin/hub detection search-period --tic 100100827", []),
+    ],
+)
+def test_reads_outside_the_dossier(command: str, outside: list[str]) -> None:
+    from runtime.audit import allowed_path, read_paths
+
+    assert [p for p in read_paths(command) if not allowed_path(p, TIC)] == outside
+
+
+def test_before_decide_follows_time_not_thread_order() -> None:
+    decide = tool_use("d1", "bin/hub direction decide --tic 1 --mode eval --reason r")
+    peek = tool_use("p1", "curl https://exofop.ipac.caltech.edu/x")
+    records = [
+        {
+            "agent": "Director",
+            "thread_id": "main",
+            "event": {**decide, "processed_at": "2026-11-27T10:05:00Z"},
+        },
+        {
+            "agent": "Reviewer",
+            "thread_id": "t1",
+            "event": {**peek, "processed_at": "2026-11-27T10:01:00Z"},
+        },
+    ]
+    (flag,) = audit(records, TIC)
+    assert flag.before_decide
+
+
+def test_read_tools_are_audited() -> None:
+    events = [
+        {
+            "agent": "Reviewer",
+            "thread_id": "t",
+            "event": {
+                "id": "r1",
+                "type": "agent.tool_use",
+                "name": "read",
+                "input": {"file_path": "/workspace/astronomy-hub/README.md"},
+            },
+        },
+        {
+            "agent": "Reviewer",
+            "thread_id": "t",
+            "event": {
+                "id": "r2",
+                "type": "agent.tool_use",
+                "name": "read",
+                "input": {
+                    "file_path": f"/workspace/astronomy-hub/workspace/exoplanets/{TIC}/signal.json"
+                },
+            },
+        },
+        {
+            "agent": "Reviewer",
+            "thread_id": "t",
+            "event": {
+                "id": "r3",
+                "type": "agent.tool_use",
+                "name": "grep",
+                "input": {"pattern": "period", "path": "/workspace/astronomy-hub/tests"},
+            },
+        },
+    ]
+    assert [f.event_id for f in audit(events, TIC)] == ["r1", "r3"]

@@ -120,7 +120,7 @@ class ManagedAgentsRuntime:
         usage = session.get("usage") or {}
         cost = cents(usage)
         record(cfg.ledger, run_id, session_id, cost, cfg.kind)
-        flags = audit(records)
+        flags = audit(records, tic_id)
         summary = {
             "run_id": run_id,
             "session_id": session_id,

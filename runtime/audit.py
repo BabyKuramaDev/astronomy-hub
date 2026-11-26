@@ -1,12 +1,16 @@
-"""Allowlist audit of the agents' bash commands.
+"""Allowlist audit of the agents' bash commands and file reads.
 
 The sandbox is shared and every agent has bash, so in eval mode any agent could
 reach an allowed host or write a file. A blocklist always falls short; instead
 every bash command must be a repository tool (bin/hub, bin/setup-sandbox) or a
-read-only inspection. Anything else is flagged in summary.json, with whether it
-happened before decide.
+read-only inspection, and every read (the read, glob and grep tools, and the files
+that cat, head, ls and the like open) must stay in the dossier or the tools'
+documentation (the skills and mission.yaml): tests/fixtures, for example, holds
+WASP-18 b's catalog period. Anything else is flagged in summary.json, with whether
+it happened before decide.
 """
 
+import posixpath
 import shlex
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -47,6 +51,16 @@ READ_ONLY = frozenset(
         "sha256sum",
     }
 )
+SANDBOX_REPO = "/workspace/astronomy-hub"
+START_DIR = "/workspace"
+DOCS = (
+    "/workspace/skills/",  # skills as the platform mounts them
+    f"{SANDBOX_REPO}/missions/exoplanets/mission.yaml",
+    "/mnt/session/outputs",
+)
+NOT_READS = frozenset({"echo", "printf", "pwd", "date", "true", "test", "[", "cd"})
+FIRST_ARG_IS_PATTERN = frozenset({"grep", "jq"})
+READ_TOOLS = {"read": ("file_path", "path"), "glob": ("path", "pattern"), "grep": ("path",)}
 OPERATORS = frozenset({";", "&&", "||", "|", "&", "(", ")", "|&"})
 STRUCTURE = frozenset({"do", "then", "else", "{"})  # keywords that precede a command
 CLOSERS = frozenset({"done", "fi", "}"})
@@ -135,25 +149,100 @@ def check_command(command: str) -> str | None:
     return None
 
 
-def audit(events: list[dict[str, Any]]) -> list[Flag]:
-    """Flags for every bash call outside the allowlist; events carry agent and thread."""
+def allowed_path(path: str, tic_id: int | None) -> bool:
+    path = posixpath.normpath(path)
+    dossier = f"{SANDBOX_REPO}/workspace/exoplanets/{tic_id}"
+    if tic_id is not None and (path == dossier or path.startswith(dossier + "/")):
+        return True
+    if path.startswith(f"{SANDBOX_REPO}/contexts/") and "/skill/" in path + "/":
+        return True
+    return any(path == d.rstrip("/") or path.startswith(d.rstrip("/") + "/") for d in DOCS)
+
+
+def read_paths(command: str) -> list[str]:
+    """Absolute paths that the read-only commands of a bash command open, following cd."""
+    try:
+        tokens = _tokens(command)
+    except ValueError:
+        return []
+    cwd, paths = START_DIR, []
+    for words in _segments(tokens):
+        while words and (
+            words[0] in STRUCTURE or ("=" in words[0] and not words[0].startswith("-"))
+        ):
+            words = words[1:]
+        if not words or words[0] in CLOSERS or words[0] == "for" or _is_tool(words[0]):
+            continue
+        program = words[0]
+        # Options, numbers and shell variables ($f in a loop) are not paths we can resolve.
+        args = [w for w in words[1:] if not w.startswith("-") and not w.isdigit() and "$" not in w]
+        if program == "cd":
+            cwd = posixpath.normpath(posixpath.join(cwd, args[0] if args else "/root"))
+            continue
+        if program in NOT_READS or program not in READ_ONLY:
+            continue
+        if program in FIRST_ARG_IS_PATTERN and args:
+            args = args[1:]
+        if not args and program == "ls":
+            args = ["."]
+        paths += [posixpath.normpath(posixpath.join(cwd, a)) for a in args]
+    return paths
+
+
+def _tool_paths(event: dict[str, Any]) -> list[str]:
+    data = event.get("input") or {}
+    out = []
+    for key in READ_TOOLS.get(str(event.get("name")), ()):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            out.append(posixpath.normpath(posixpath.join(START_DIR, value)))
+    return out
+
+
+def audit(events: list[dict[str, Any]], tic_id: int | None = None) -> list[Flag]:
+    """Flags for every bash call outside the allowlist and every read outside the dossier
+    and the tools' documentation; events carry agent and thread."""
     decided = False
     flags = []
-    for record in events:
+    # Threads are stored one after another; before_decide needs the order in time.
+    timeline = sorted(events, key=lambda r: str(r["event"].get("processed_at") or ""))
+    for record in timeline:
         event = record["event"]
-        if event.get("type") == "agent.tool_use" and event.get("name") == "bash":
+        if event.get("type") != "agent.tool_use":
+            continue
+        name = event.get("name")
+        if name in READ_TOOLS:
+            for path in _tool_paths(event):
+                if not allowed_path(path, tic_id):
+                    flags.append(
+                        Flag(
+                            record["agent"],
+                            record["thread_id"],
+                            str(event.get("id")),
+                            f"{name} {path}",
+                            "reads outside the dossier and the tool docs",
+                            before_decide=not decided,
+                        )
+                    )
+        if name == "bash":
             command = str((event.get("input") or {}).get("command", ""))
             if "direction decide" in command:
                 decided = True
+            reasons = []
+            outside = [p for p in read_paths(command) if not allowed_path(p, tic_id)]
+            if outside:
+                reasons.append("reads outside the dossier and the tool docs: " + ", ".join(outside))
             reason = check_command(command)
             if reason is not None:
+                reasons.append(reason)
+            if reasons:  # one flag per command, with every reason
                 flags.append(
                     Flag(
                         record["agent"],
                         record["thread_id"],
                         str(event.get("id")),
                         command,
-                        reason,
+                        "; ".join(reasons),
                         before_decide=not decided,
                     )
                 )
@@ -176,7 +265,8 @@ def main(argv: list[str] | None = None) -> int:
     records = [json.loads(x) for x in (args.run_dir / "events.jsonl").read_text().splitlines()]
     summary_file = args.run_dir / "summary.json"
     summary = json.loads(summary_file.read_text())
-    flags = as_dicts(audit(records))
+    tic = summary.get("tic_id")
+    flags = as_dicts(audit(records, int(tic) if tic is not None else None))
     summary["audit"]["flags"] = flags
     summary_file.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     bash = sum(
