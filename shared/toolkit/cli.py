@@ -116,7 +116,7 @@ def run_handler(
     error: str | None = None
     exit_code = 0
     try:
-        with isolated_caches(ctx.dossier.cache_dir):
+        with isolated_caches(ctx.dossier.cache_dir, ctx.dossier.font_cache_dir):
             result = handler(args, ctx)
     except ToolError as exc:
         error, exit_code = (

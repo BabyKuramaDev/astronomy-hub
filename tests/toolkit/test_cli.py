@@ -111,4 +111,4 @@ def test_caches_stay_inside_the_dossier(tmp_path: Path) -> None:
     assert tools.main(["probe", "--tic", "7", "--workspace", str(tmp_path)]) == 0
     cache = tmp_path / "exoplanets" / "7" / ".cache"
     assert Path(seen["astropy"]).is_relative_to(cache)
-    assert Path(seen["mpl"]).is_relative_to(cache)
+    assert Path(seen["mpl"]) == tmp_path / ".cache" / "matplotlib"

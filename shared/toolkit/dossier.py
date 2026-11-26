@@ -49,6 +49,11 @@ class Dossier:
     def cache_dir(self) -> Path:
         return self.root / CACHE_DIR
 
+    @property
+    def font_cache_dir(self) -> Path:
+        """matplotlib font cache, shared by the workspace: <workspace>/.cache/matplotlib."""
+        return self.root.parent.parent / CACHE_DIR / "matplotlib"
+
     def path(self, rel: str) -> Path:
         _check_relative_path(rel)
         return self.root / rel

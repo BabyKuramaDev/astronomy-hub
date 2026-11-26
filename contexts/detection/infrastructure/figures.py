@@ -1,11 +1,15 @@
 """Fold figure as PNG bytes (matplotlib, Agg backend, no timestamps in metadata)."""
 
 import io
+import logging
 
 from contexts.detection.domain.fold import FoldResult
 
 
 def render_fold(result: FoldResult, title: str) -> bytes:
+    # The first run in a workspace builds the font cache and says so on stderr; tools
+    # keep stderr for errors only.
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
     import matplotlib
 
     matplotlib.use("Agg")
