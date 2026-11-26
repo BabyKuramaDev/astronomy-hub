@@ -15,6 +15,12 @@ behavior, and update it in the same change when a decision changes.
 - `make lint`: `ruff check`, `ruff format --check`, `lint-imports`
 - `make format`: format and autofix
 - Run a tool: `uv run python -m contexts.<context>.cli <tool> --tic <id> --workspace <dir>`
+  (in the sandbox, agents use `bin/hub <context> <tool> ...`)
+- `make hello [MODE=eval|explore]`: WASP-18 b on Managed Agents (spends credits; budget per
+  session and a total cap in `runs/ledger.jsonl`); `make probe` measures the sandbox
+- `make test-platform`: read-only checks against Managed Agents (marker `platform`)
+- `uv run python -m scripts.build_environment`: regenerate `environment.yaml` from `uv.lock`
+- `ant apply <files>`: sync agents, skills and environments; commit `claude-lock.json`
 
 ## Working rules
 
@@ -44,7 +50,10 @@ behavior, and update it in the same change when a decision changes.
   network or file libraries, no `open`, `input` or `print`.
   See `tests/architecture/domain_purity.py`.
 - `shared/` and `evals/` never import `contexts/`.
-- Only `runtime/` imports `anthropic`.
+- Only `runtime/` imports `anthropic`; `runtime/` never imports `contexts/`.
+- Agents (`contexts/<context>/agent.md`) and skills (`contexts/<context>/skill/`) are
+  synced with `ant apply`. Every prompt carries `shared/prompts/common.md` word for word
+  (a test checks it). Agents have bash, read, glob and grep only; web only the Librarian.
 - Mission-specific values come from `missions/<mission>/mission.yaml`, never
   hardcoded in a context.
 

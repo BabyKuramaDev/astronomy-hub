@@ -34,6 +34,7 @@ make install   # uv sync + pre-commit hooks
 make test          # pytest without network, including the architecture tests
 make test-network  # end-to-end WASP-18 b run against MAST and the catalogs
 make dossier       # WASP-18 b's complete dossier without an LLM (TIC=<id> MODE=explore|eval)
+make hello         # the same star on Claude Managed Agents, six agents (spends API credits)
 make lint          # ruff + import-linter
 make format        # ruff format + autofix
 ```
@@ -74,7 +75,8 @@ contexts/<context>/   one bounded context per astronomer role (10)
 shared/               kernel value objects, dossier contracts, common prompts
 missions/exoplanets/  mission.yaml
 evals/                eval set, runner and scorer (reads the dossier only)
-runtime/              adapter to Claude Managed Agents
+runtime/              adapter to Claude Managed Agents: sessions, events, cost, audit
+bin/                  hub (run a tool in the sandbox) and setup-sandbox
 scripts/              build_dossier.py: the whole pipeline without an LLM
 tests/                shared, architecture and end-to-end tests, WASP-18 b fixtures
 ```
