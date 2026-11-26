@@ -40,9 +40,10 @@ default-groups = ["dev", "runtime"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "contexts"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not network"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not network and not platform"]
 markers = [
     "network: talks to MAST or other remote services; excluded from make test and CI",
+    "platform: talks to Claude Managed Agents (no sessions, no cost); excluded from make test and CI",
 ]
 xfail_strict = true
 
@@ -109,4 +110,10 @@ forbidden_modules = ["anthropic"]
 name = "evals does not import contexts"
 type = "forbidden"
 source_modules = ["evals"]
+forbidden_modules = ["contexts"]
+
+[[tool.importlinter.contracts]]
+name = "runtime does not import contexts"
+type = "forbidden"
+source_modules = ["runtime"]
 forbidden_modules = ["contexts"]

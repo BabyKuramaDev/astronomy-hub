@@ -87,6 +87,12 @@ def test_repo_keeps_every_import_contract(repo_root: Path) -> None:
             "evals does not import contexts",
             id="evals-imports-context",
         ),
+        pytest.param(
+            "runtime/leak.py",
+            "from contexts.vetting.domain import gates\n",
+            "runtime does not import contexts",
+            id="runtime-imports-context",
+        ),
     ],
 )
 def test_violation_breaks_contract(

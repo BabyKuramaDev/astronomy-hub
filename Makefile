@@ -1,4 +1,4 @@
-.PHONY: install test test-network lint format dossier
+.PHONY: install test test-network test-platform lint format dossier hello probe
 
 MODE ?= eval
 
@@ -24,3 +24,13 @@ format:
 # Complete dossier without an LLM (network). TIC defaults to WASP-18 b's, from the fixtures.
 dossier:
 	@uv run python -m scripts.build_dossier --mode $(MODE) $(if $(TIC),--tic $(TIC),)
+
+# Managed Agents (spends API credits; budget per session and a total cap in runtime/).
+hello:
+	uv run python -m runtime.hello --mode $(MODE)
+
+probe:
+	uv run python -m runtime.probe
+
+test-platform:
+	uv run pytest -m platform
