@@ -1,0 +1,36 @@
+[project]
+name = "astronomy-hub"
+version = "0.1.0"
+description = "Open source agent hub that searches TESS light curves for exoplanet transits."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic>=2.12",
+]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.5",
+    "pre-commit>=4.3",
+    "pytest>=9.0",
+    "ruff>=0.17",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "contexts"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["contexts", "shared", "evals", "runtime"]
