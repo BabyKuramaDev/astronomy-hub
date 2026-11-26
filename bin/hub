@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Run a hub tool: bin/hub <context> <tool> [options]
+# Example: bin/hub detection search-period --tic 100100827
+# Uses the repo's .venv when bin/setup-sandbox created one, python3 otherwise.
+set -euo pipefail
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ $# -lt 2 ]]; then
+  echo "usage: bin/hub <context> <tool> [options]" >&2
+  exit 2
+fi
+python="${repo}/.venv/bin/python"
+[[ -x "$python" ]] || python="python3"
+cd "$repo"
+exec "$python" -m "contexts.$1.cli" "${@:2}"

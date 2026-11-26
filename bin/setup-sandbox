@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Prepare a Managed Agents sandbox to run the hub tools (idempotent).
+# If the default python3 is not 3.12, create .venv from uv.lock with uv (runtime
+# dependencies only), so bin/hub runs the pinned versions. Prints one JSON line.
+set -euo pipefail
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo"
+start=$(date +%s)
+version="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo none)"
+mode="system"
+if [[ "$version" != "3.12" ]] || ! python3 -c "import batman, transitleastsquares, wotan" 2>/dev/null; then
+  mode="uv"
+  if [[ ! -x .venv/bin/python ]]; then
+    uv sync --frozen --no-default-groups --python 3.12 >&2
+  fi
+fi
+python=".venv/bin/python"; [[ -x "$python" ]] || python="python3"
+"$python" -c "import batman, transitleastsquares, wotan, astroquery" >&2
+printf '{"python3": "%s", "mode": "%s", "seconds": %d}\n' "$version" "$mode" "$(( $(date +%s) - start ))"
