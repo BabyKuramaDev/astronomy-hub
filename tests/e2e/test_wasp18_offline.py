@@ -86,7 +86,7 @@ def test_star_and_model(run: tuple[Path, dict[str, Any]]) -> None:
     model = Dossier(root).read_envelope("model.json", ModelFile).data
     assert model.planet_radius_rearth is not None
     assert model.stellar_source == star.source
-    assert "convergence" in out["fit"]
+    assert out["fit"]["method"] == "quick"
 
 
 def test_every_tool_logged(run: tuple[Path, dict[str, Any]]) -> None:

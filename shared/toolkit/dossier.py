@@ -100,6 +100,19 @@ class Dossier:
         self.writes[rel] = digest
         return digest
 
+    def stale_inputs(self, envelope: Envelope[Any], rels: tuple[str, ...]) -> list[str]:
+        """Inputs among rels that envelope read with a different hash than the file has now.
+
+        A file the envelope never read, or that no longer exists, also counts as stale.
+        """
+        stale = []
+        for rel in rels:
+            path = self.path(rel)
+            recorded = envelope.inputs.get(rel)
+            if recorded is None or not path.is_file() or sha256_file(path) != recorded:
+                stale.append(rel)
+        return stale
+
     # Tables ---------------------------------------------------------------------------
 
     def read_table(self, rel: str) -> dict[str, np.ndarray]:

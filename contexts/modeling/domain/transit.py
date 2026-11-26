@@ -1,8 +1,9 @@
 """Transit model (batman, quadratic limb darkening) and its posterior for emcee.
 
-Parameters: t0, period, rp_rs, b, log_a_rs, q1, q2, f0. Limb darkening uses the
-Kipping (2013) q1, q2 parametrization with uniform priors on [0, 1], so no
-tabulated coefficients enter the fit.
+Parameters: t0, period, rp_rs, b, log_a_rs, q1, q2, f0, log_jitter. Limb darkening
+uses the Kipping (2013) q1, q2 parametrization with uniform priors on [0, 1], so no
+tabulated coefficients enter the fit. The jitter is white noise added in quadrature
+to every point's error; its log has a uniform prior between the bounds.
 """
 
 import math
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 import batman
 import numpy as np
 
-PARAMS = ("t0", "period", "rp_rs", "b", "log_a_rs", "q1", "q2", "f0")
+PARAMS = ("t0", "period", "rp_rs", "b", "log_a_rs", "q1", "q2", "f0", "log_jitter")
 NDIM = len(PARAMS)
 
 
@@ -21,6 +22,7 @@ class Bounds:
     period: tuple[float, float]
     log_a_rs: tuple[float, float] = (0.0, math.log(500.0))
     f0: tuple[float, float] = (0.98, 1.02)
+    log_jitter: tuple[float, float] = (math.log(1e-9), math.log(0.05))
 
 
 @dataclass(frozen=True)
@@ -41,7 +43,7 @@ def initial_vector(guess: Guess) -> np.ndarray:
     b = 0.3
     chord = math.sqrt(max((1.0 + rp) ** 2 - b**2, 1e-3))
     a = max(guess.period / (math.pi * guess.duration_days) * chord, 1.0 + rp + 0.1)
-    return np.array([guess.t0, guess.period, rp, b, math.log(a), 0.5, 0.5, 1.0])
+    return np.array([guess.t0, guess.period, rp, b, math.log(a), 0.5, 0.5, 1.0, math.log(1e-5)])
 
 
 class TransitPosterior:
@@ -55,14 +57,14 @@ class TransitPosterior:
     ) -> None:
         self.time = time
         self.flux = flux
-        self.ivar = 1.0 / flux_err**2
+        self.var = flux_err**2
         self.bounds = bounds
         self._params = batman.TransitParams()
         self._set(start)
         self._model = batman.TransitModel(self._params, time)
 
     def _set(self, theta: np.ndarray) -> None:
-        t0, period, rp, b, log_a, q1, q2, _ = theta
+        t0, period, rp, b, log_a, q1, q2 = theta[:7]
         a = math.exp(log_a)
         p = self._params
         p.t0, p.per, p.rp, p.a = t0, period, rp, a
@@ -72,7 +74,7 @@ class TransitPosterior:
         p.limb_dark = "quadratic"
 
     def in_bounds(self, theta: np.ndarray) -> bool:
-        t0, period, rp, b, log_a, q1, q2, f0 = theta
+        t0, period, rp, b, log_a, q1, q2, f0, log_jitter = theta
         bd = self.bounds
         return (
             bd.t0[0] < t0 < bd.t0[1]
@@ -84,6 +86,7 @@ class TransitPosterior:
             and 0.0 <= q1 <= 1.0
             and 0.0 <= q2 <= 1.0
             and bd.f0[0] < f0 < bd.f0[1]
+            and bd.log_jitter[0] < log_jitter < bd.log_jitter[1]
         )
 
     def model(self, theta: np.ndarray) -> np.ndarray:
@@ -94,5 +97,16 @@ class TransitPosterior:
         if not self.in_bounds(theta):
             return -math.inf
         resid = self.flux - self.model(theta)
-        value = -0.5 * float(np.sum(resid * resid * self.ivar))
+        var = self.var + math.exp(2.0 * theta[8])
+        value = -0.5 * float(np.sum(resid * resid / var + np.log(var)))
         return value if math.isfinite(value) else -math.inf
+
+
+def total_duration_days(
+    period: np.ndarray, rp_rs: np.ndarray, b: np.ndarray, a_rs: np.ndarray
+) -> np.ndarray:
+    """T14 of a circular orbit; NaN where the planet does not transit."""
+    with np.errstate(invalid="ignore", divide="ignore"):
+        sin_i = np.sqrt(1.0 - (b / a_rs) ** 2)
+        chord = np.sqrt((1.0 + rp_rs) ** 2 - b**2) / (a_rs * sin_i)
+        return np.where(chord <= 1.0, period / math.pi * np.arcsin(chord), np.nan)

@@ -41,7 +41,7 @@ def test_unknown_key_is_rejected(tmp_path: Path, raw: dict) -> None:
     [
         ("detection", "snr_min", -1),
         ("detection", "period_min_days", 20.0),
-        ("modeling", "burn", 10**9),  # not below steps
+        ("modeling", "jitter_ppm_range", [5.0, 1.0]),
         ("acquisition", "flux_column", "SAP_FLUX"),
         ("preparation", "detrend_method", "median"),
     ],

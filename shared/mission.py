@@ -87,18 +87,34 @@ class DetectionConfig(ContractModel):
         return self
 
 
-class ModelingConfig(ContractModel):
+class QuickFitConfig(ContractModel):
+    samples: PositiveInt  # draws from the covariance for the errors of derived quantities
+
+
+class McmcConfig(ContractModel):
     walkers: PositiveInt
     steps: PositiveInt
     burn: NonNegativeInt
-    seed: NonNegativeInt
-    window_durations: PositiveFloat
     autocorr_factor: PositiveFloat
 
     @model_validator(mode="after")
     def _burn_below_steps(self) -> Self:
         if self.burn >= self.steps:
             raise ValueError("burn must be below steps")
+        return self
+
+
+class ModelingConfig(ContractModel):
+    seed: NonNegativeInt
+    window_durations: PositiveFloat
+    jitter_ppm_range: tuple[PositiveFloat, PositiveFloat]
+    quick: QuickFitConfig
+    mcmc: McmcConfig
+
+    @model_validator(mode="after")
+    def _jitter_range(self) -> Self:
+        if self.jitter_ppm_range[0] >= self.jitter_ppm_range[1]:
+            raise ValueError("jitter_ppm_range must be increasing")
         return self
 
 

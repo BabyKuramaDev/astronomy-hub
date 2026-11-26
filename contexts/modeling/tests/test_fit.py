@@ -5,20 +5,28 @@ from contexts.modeling.domain.fit import (
     RSUN_IN_REARTH,
     ChainSettings,
     FitError,
-    fit_transit,
+    FitSettings,
+    fit_mcmc,
+    fit_quick,
     planet_radius,
     summarize,
 )
-from contexts.modeling.domain.transit import Guess, limb_darkening
+from contexts.modeling.domain.transit import Guess, limb_darkening, total_duration_days
 from contexts.modeling.tests.conftest import DURATION_HOURS, TRUE, batman_lc
 from shared.contracts import Measurement
 
-SHORT = ChainSettings(walkers=16, steps=150, burn=50, seed=7, autocorr_factor=50.0)
+SETTINGS = FitSettings(seed=7, window_durations=3.0, jitter_min=1e-9, jitter_max=0.05)
+SHORT = ChainSettings(walkers=20, steps=150, burn=50, autocorr_factor=50.0)
 GUESS = Guess(
     t0=TRUE["t0"] + 0.002,
     period=TRUE["period"] * 1.0001,
     duration_days=DURATION_HOURS / 24,
     depth=0.011,
+)
+TRUE_T14_HOURS = 24.0 * float(
+    total_duration_days(
+        np.array(TRUE["period"]), np.array(TRUE["rp"]), np.array(TRUE["b"]), np.array(TRUE["a"])
+    )
 )
 
 
@@ -35,36 +43,80 @@ def test_summarize_percentiles() -> None:
     assert m.err_upper == pytest.approx(2.0, rel=0.02)
 
 
-def test_short_chain_recovers_radius_ratio() -> None:
+def test_total_duration_of_a_central_transit() -> None:
+    t14 = total_duration_days(np.array(10.0), np.array(0.0), np.array(0.0), np.array(10.0))
+    assert float(t14) == pytest.approx(10.0 / np.pi * np.arcsin(0.1))
+    assert np.isnan(total_duration_days(np.array(1.0), np.array(0.1), np.array(2.0), np.array(5.0)))
+
+
+def test_quick_fit_recovers_parameters_with_errors() -> None:
     time, flux, err = batman_lc()
-    result = fit_transit(time, flux, err, GUESS, SHORT, window_durations=3.0)
+    result = fit_quick(time, flux, err, GUESS, SETTINGS, n_samples=5000)
+    assert result.method == "quick"
+    assert result.convergence is None
     assert result.rp_rs.value == pytest.approx(TRUE["rp"], rel=0.05)
     assert result.period.value == pytest.approx(TRUE["period"], rel=1e-4)
+    assert result.duration_hours.value == pytest.approx(TRUE_T14_HOURS, rel=0.03)
+    assert abs(result.rp_rs.value - TRUE["rp"]) < 4 * result.rp_rs.err_upper
+    assert 0 < result.rp_rs.err_lower < 0.01
+
+
+def test_quick_fit_measures_extra_white_noise() -> None:
+    """Points have 400 ppm of noise but report 200 ppm: the jitter takes the rest."""
+    time, flux, err = batman_lc(noise_ppm=400.0)
+    result = fit_quick(time, flux, err / 2, GUESS, SETTINGS, n_samples=2000)
+    assert result.jitter_ppm.value == pytest.approx(np.sqrt(400.0**2 - 200.0**2), rel=0.1)
+    honest = fit_quick(time, flux, err, GUESS, SETTINGS, n_samples=2000)
+    assert honest.jitter_ppm.value < 60.0
+
+
+def test_quick_fit_is_deterministic() -> None:
+    time, flux, err = batman_lc()
+    a = fit_quick(time, flux, err, GUESS, SETTINGS, n_samples=1000)
+    b = fit_quick(time, flux, err, GUESS, SETTINGS, n_samples=1000)
+    assert a.rp_rs == b.rp_rs
+    assert a.jitter_ppm == b.jitter_ppm
+
+
+def test_short_chain_recovers_radius_ratio() -> None:
+    time, flux, err = batman_lc()
+    result = fit_mcmc(time, flux, err, GUESS, SETTINGS, SHORT)
+    assert result.method == "mcmc"
+    assert result.rp_rs.value == pytest.approx(TRUE["rp"], rel=0.05)
+    assert result.period.value == pytest.approx(TRUE["period"], rel=1e-4)
+    assert result.convergence is not None
     assert result.convergence.n_post_burn == 100
     assert 0.0 < result.convergence.acceptance_mean < 1.0
     assert not result.convergence.converged  # 100 steps cannot be 50 autocorrelation times
 
 
-def test_fit_is_deterministic_with_seed() -> None:
+def test_mcmc_is_deterministic_with_seed() -> None:
     time, flux, err = batman_lc()
-    settings = ChainSettings(walkers=16, steps=40, burn=10, seed=7, autocorr_factor=50.0)
-    a = fit_transit(time, flux, err, GUESS, settings, window_durations=3.0)
-    b = fit_transit(time, flux, err, GUESS, settings, window_durations=3.0)
+    chain = ChainSettings(walkers=20, steps=40, burn=10, autocorr_factor=50.0)
+    a = fit_mcmc(time, flux, err, GUESS, SETTINGS, chain)
+    b = fit_mcmc(time, flux, err, GUESS, SETTINGS, chain)
     assert a.rp_rs == b.rp_rs
     np.testing.assert_array_equal(a.rp_rs_samples, b.rp_rs_samples)
 
 
 @pytest.mark.parametrize(
-    ("settings", "message"),
+    ("chain", "message"),
     [
-        (ChainSettings(walkers=8, steps=40, burn=10, seed=1, autocorr_factor=50.0), "walkers"),
-        (ChainSettings(walkers=16, steps=40, burn=40, seed=1, autocorr_factor=50.0), "burn"),
+        (ChainSettings(walkers=8, steps=40, burn=10, autocorr_factor=50.0), "walkers"),
+        (ChainSettings(walkers=20, steps=40, burn=40, autocorr_factor=50.0), "burn"),
     ],
 )
-def test_invalid_chain_settings(settings: ChainSettings, message: str) -> None:
+def test_invalid_chain_settings(chain: ChainSettings, message: str) -> None:
     time, flux, err = batman_lc()
     with pytest.raises(FitError, match=message):
-        fit_transit(time, flux, err, GUESS, settings, window_durations=3.0)
+        fit_mcmc(time, flux, err, GUESS, SETTINGS, chain)
+
+
+def test_too_few_points_near_transits() -> None:
+    time, flux, err = batman_lc()
+    keep = slice(0, 50)
+    with pytest.raises(FitError, match="points near the transits"):
+        fit_quick(time[keep], flux[keep], err[keep], GUESS, SETTINGS, n_samples=100)
 
 
 def test_planet_radius_propagates_stellar_error() -> None:

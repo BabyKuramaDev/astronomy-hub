@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from contexts.modeling.domain.transit import limb_darkening
-from shared.contracts import Measurement, SignalData, StarData
+from shared.contracts import Gate, Measurement, SignalData, StarData, VettingData
 from shared.kernel.contexts import Context
 from shared.toolkit.dossier import Dossier
 from shared.toolkit.meta import ToolMeta
@@ -94,3 +94,16 @@ def write_dossier(root: Path, *, detected: bool = True, star: str = "with_radius
 def dossier_root(tmp_path: Path) -> Path:
     write_dossier(tmp_path)
     return tmp_path
+
+
+def write_vetting(root: Path, verdict: str = "candidate") -> None:
+    """vetting.json computed on the current signal.json."""
+    dossier = Dossier(root)
+    dossier.record_read("signal.json")
+    gate = Gate(
+        id="odd-even", status="pass", severity="hard", value=0.5, threshold=2.5, note="", n_runs=1
+    )
+    data = VettingData(gates=[gate], verdict=verdict, rationale="test")  # type: ignore[arg-type]
+    dossier.write_envelope(
+        "vetting.json", meta(Context.VETTING, "conclude").envelope(data, dossier.reads)
+    )

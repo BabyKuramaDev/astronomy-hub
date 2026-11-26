@@ -32,7 +32,7 @@ def tool(context: str, name: str, tic: int, workspace: Path, *extra: str) -> dic
 
 
 def detection_chain(tic: int, workspace: Path) -> dict[str, Any]:
-    """clean -> search-period -> select-peak p1 -> fold -> fit-transit; returns summaries."""
+    """clean -> search-period -> select-peak p1 -> fold -> fit-transit (quick)."""
     out = {"clean": tool("preparation", "clean", tic, workspace)}
     out["search"] = tool("detection", "search-period", tic, workspace)
     out["select"] = tool(
@@ -40,5 +40,5 @@ def detection_chain(tic: int, workspace: Path) -> dict[str, Any]:
         "--reason", "end-to-end test: highest-ranked peak",
     )  # fmt: skip
     out["fold"] = tool("detection", "fold", tic, workspace, "--peak", "p1")
-    out["fit"] = tool("modeling", "fit-transit", tic, workspace, *SHORT_CHAIN)
+    out["fit"] = tool("modeling", "fit-transit", tic, workspace)
     return out

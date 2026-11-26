@@ -54,9 +54,13 @@ detection:
     n_bins: 15
 
 modeling:
-  walkers: 32
-  steps: 8000                    # WASP-18 b: tau_max ~100, so 6000 post-burn steps > 50 tau
-  burn: 2000
   seed: 42
   window_durations: 3.0          # only data within +/- 3 durations of a transit is fitted
-  autocorr_factor: 50.0          # converged when post-burn steps > factor * max tau
+  jitter_ppm_range: [0.001, 50000.0]  # prior range of the white-noise jitter
+  quick:                         # default mode: least squares, seconds per star
+    samples: 20000               # covariance draws for errors of a/R*, T14, Rp
+  mcmc:                          # only for candidates that passed vetting
+    walkers: 32
+    steps: 8000                  # WASP-18 b: tau_max ~100, so 6000 post-burn steps > 50 tau
+    burn: 2000
+    autocorr_factor: 50.0        # converged when post-burn steps > factor * max tau
