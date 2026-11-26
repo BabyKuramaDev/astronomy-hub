@@ -8,13 +8,13 @@ The full design is in [`docs/SPEC.md`](docs/SPEC.md) (in Spanish).
 
 ## Status
 
-M0 (scaffold) is done: repo layout, dossier contracts, architecture tests, CI
-and secret scanning. The astronomy tools start in M1.
+M1 (signal tools) is done: the six signal tools run end to end on WASP-18 b
+from MAST and recover its catalog period. Verification tools start in M2.
 
 | Milestone | Scope |
 | --- | --- |
-| **M0 Scaffold** | Layout, `shared/contracts`, architecture tests, CI, secret scanning |
-| M1 Signal tools | Download, clean, period search, fold, transit fit |
+| M0 Scaffold | Layout, `shared/contracts`, architecture tests, CI, secret scanning |
+| **M1 Signal tools** | Download, clean, period search, fold, transit fit |
 | M2 Verification tools | Crossmatch, vetting gates, independent reproduction, ephemeris, report |
 | M3 Agent skeleton | Six agents on Claude Managed Agents, with a budget per session |
 | M4 Evals | Eval set, runner and scorer in blind mode |
@@ -29,9 +29,22 @@ and secret scanning. The astronomy tools start in M1.
 
 ```sh
 make install   # uv sync + pre-commit hooks
-make test      # pytest, including the architecture tests
-make lint      # ruff + import-linter
-make format    # ruff format + autofix
+make test          # pytest without network, including the architecture tests
+make test-network  # end-to-end WASP-18 b run against MAST
+make lint          # ruff + import-linter
+make format        # ruff format + autofix
+```
+
+Run the signal chain for one star (dossier in `workspace/exoplanets/<tic>/`):
+
+```sh
+uv run python -m contexts.acquisition.cli fetch-lightcurves --tic <tic>
+uv run python -m contexts.acquisition.cli fetch-star --tic <tic>
+uv run python -m contexts.preparation.cli clean --tic <tic>
+uv run python -m contexts.detection.cli search-period --tic <tic>
+uv run python -m contexts.detection.cli fold --tic <tic> --peak p1
+uv run python -m contexts.detection.cli select-peak --tic <tic> --peak p1 --reason "..."
+uv run python -m contexts.modeling.cli fit-transit --tic <tic>
 ```
 
 ## Layout

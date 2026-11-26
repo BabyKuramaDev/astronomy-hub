@@ -7,7 +7,9 @@ behavior, and update it in the same change when a decision changes.
 ## Commands
 
 - `make install`: `uv sync` and pre-commit hooks (needs `gitleaks` on PATH)
-- `make test`: pytest, including the architecture tests
+- `make test`: pytest without network, including the architecture tests
+- `make test-network`: tests marked `network` (WASP-18 b against MAST); not in CI
+- `uv run python -m tests.fixtures.wasp18.build`: rebuild the WASP-18 b fixtures (network)
 - `make lint`: `ruff check`, `ruff format --check`, `lint-imports`
 - `make format`: format and autofix
 - Run a tool: `uv run python -m contexts.<context>.cli <tool> --tic <id> --workspace <dir>`
@@ -55,8 +57,29 @@ injects a violation into a temporary copy of the repo.
 - Exit codes: 0 ok, 2 invalid input, 3 data not available. Errors go to
   stderr on one line.
 - Deterministic and idempotent, fixed seeds. Tests run without LLM or network.
+- Shared tool plumbing lives in `shared/toolkit` (`ToolCli`, `Dossier`, `ToolMeta`):
+  every tool validates its contract on write and appends a `log.jsonl` entry.
+- Thresholds and parameters come from `missions/<mission>/mission.yaml`, validated
+  by `shared/mission.py`. Add new ones there, never as constants in a context.
+- Downloads go to the dossier; astropy/astroquery caches go to `<dossier>/.cache`,
+  matplotlib's font cache to `<workspace>/.cache`. Never write to global caches.
+
+## Tests
+
+- `make test` must stay offline: the root `conftest.py` blocks network access for
+  tests without the `network` marker. Tests that hit MAST get `@pytest.mark.network`.
+- Fixtures stay under 1 MB with their provenance written next to them. Astronomical
+  reference values come from a catalog query (see `tests/fixtures/wasp18/`), never
+  from memory.
 
 ## Open questions
 
-Tracked at the end of `docs/SPEC.md`. Still open for M1/M2: which tool each
-agent uses to record its decision (chosen peak, verdicts, `decision.json`).
+Tracked at the end of `docs/SPEC.md`. Detection records its choice with
+`select-peak`; still open for M2: how Vetting, Review and the Director record theirs.
+
+## Environment notes
+
+- batman 2.5.3 imports `distutils`; `contexts/modeling/domain/transit.py` imports
+  `setuptools` first so the shim does not depend on a `.pth` file.
+- This checkout lives under an iCloud-managed `~/Documents`: macOS may mark dotfiles
+  hidden (Python then skips `.pth` files) and create `"<name> 2"` conflict copies.
