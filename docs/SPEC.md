@@ -242,7 +242,9 @@ Mismo patrón que `select-peak`: cada contexto con criterio tiene una tool que c
 | `review` | `conclude --rationale` | Período independiente dentro de `period_tolerance` y profundidad dentro de `depth_tolerance` de `signal.json` da `reproduced`; período dentro de la tolerancia con otra profundidad, o un alias entero del período, da `partial`; si no, `not_reproduced` |
 | `direction` | `decide --mode --reason` | La regla del Director de arriba; `next_step` sale de una plantilla de `mission.yaml` |
 
-Las tres tools rechazan (exit 2) archivos calculados sobre otro `signal.json`: comparan el hash de `inputs` con el `signal.json` actual.
+Las tres tools (y `fit-transit --mode mcmc`) rechazan (exit 2) archivos calculados sobre otro `signal.json`: comparan el hash de `inputs` con el del archivo actual. El hash es del archivo, no de `data`, así que volver a correr `select-peak` con el mismo pico (cambia `created_at`) también obliga a rehacer lo que sigue: es la opción estricta y coincide con lo que registra `inputs`.
+
+`decide` en modo `eval` no lee `catalog.json` aunque exista, y con `vetting.verdict = false_positive` no necesita `review.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
 
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.
 - Un agente nunca edita a mano el JSON de otro contexto.

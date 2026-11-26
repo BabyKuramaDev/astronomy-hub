@@ -129,3 +129,11 @@ review:
 followup:
   horizon_days: 30.0             # ephemeris lists the transits of the next 30 days
   max_transits: 20               # at most
+
+direction:
+  next_steps:                    # decision.json next_step, by final verdict
+    no_signal: "None for this star with the current sectors; revisit when TESS observes new sectors."
+    known: "None: the signal matches a catalogued object at its period; see catalog.json."
+    false_positive: "None: a hard vetting gate rejects the signal; see vetting.json."
+    candidate: "Photometric follow-up at the transits in ephemeris.json, high-resolution imaging to exclude nearby eclipsing binaries, then radial velocities to measure the mass."
+    inconclusive: "Rerun with more sectors, or follow up the gates that are not passing in vetting.json and the disagreements in review.json."

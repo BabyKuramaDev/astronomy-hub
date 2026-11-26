@@ -236,6 +236,18 @@ class FollowupConfig(ContractModel):
     max_transits: PositiveInt
 
 
+class NextSteps(ContractModel):
+    no_signal: NonEmptyStr
+    known: NonEmptyStr
+    false_positive: NonEmptyStr
+    candidate: NonEmptyStr
+    inconclusive: NonEmptyStr
+
+
+class DirectionConfig(ContractModel):
+    next_steps: NextSteps  # decision.json next_step, by final verdict
+
+
 class MissionConfig(ContractModel):
     name: Slug
     description: NonEmptyStr
@@ -247,6 +259,7 @@ class MissionConfig(ContractModel):
     vetting: VettingConfig
     review: ReviewConfig
     followup: FollowupConfig
+    direction: DirectionConfig
 
 
 class MissionError(ValueError):
