@@ -61,7 +61,8 @@ modeling:
     samples: 20000               # covariance draws for errors of a/R*, T14, Rp
   mcmc:                          # only for candidates that passed vetting
     walkers: 32
-    steps: 8000                  # WASP-18 b: tau_max ~100, so 6000 post-burn steps > 50 tau
+    steps: 10000                 # WASP-18 b with jitter: tau_max ~130, so 8000 post-burn
+                                 # steps > 50 tau (6500); 8000 steps did not converge
     burn: 2000
     autocorr_factor: 50.0        # converged when post-burn steps > factor * max tau
 

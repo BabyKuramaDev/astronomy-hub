@@ -23,4 +23,4 @@ format:
 
 # Complete dossier without an LLM (network). TIC defaults to WASP-18 b's, from the fixtures.
 dossier:
-	uv run python -m scripts.build_dossier --mode $(MODE) $(if $(TIC),--tic $(TIC),)
+	@uv run python -m scripts.build_dossier --mode $(MODE) $(if $(TIC),--tic $(TIC),)
