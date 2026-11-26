@@ -622,7 +622,7 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 - [x] Repo nuevo `astronomy-hub`, no una carpeta dentro de agency-hub.
 - [x] Con qué tool registran su decisión el Abogado del diablo y el Revisor (veredicto) y el Director (`decision.json`): `conclude` en vetting y en review, `decide` en direction, con el mismo patrón que `select-peak` (ver Decisiones de los agentes).
 - [ ] (M3) Con qué tool registra el Bibliotecario la literatura que encuentra en la web. En M2 `crossmatch` deja `literature` vacía. Lo más probable: `add-literature`, con el mismo patrón que `select-peak`.
-- [ ] Prompts en inglés o en español. Propuesta: inglés.
+- [x] Idioma: el repo, los commits, los prompts, las skills y `report.md` van en inglés. La conversación con el autor (planes y resúmenes) va en español.
 - [ ] Qué estrellas explora el Director después de los evals. Propuesta: enanas cercanas de tipo K y M, como los repos de referencia.
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
 - [ ] Objetivos definitivos de los evals, después de la primera corrida.

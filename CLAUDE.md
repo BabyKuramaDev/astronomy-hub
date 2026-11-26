@@ -18,6 +18,8 @@ behavior, and update it in the same change when a decision changes.
 
 ## Working rules
 
+- Talk to the author in Spanish, always, including plans and final summaries.
+  The repo, commits, code, prompts, skills and report.md stay in English.
 - Milestones go in order (M0 to M5). Do not start the next one until the
   current one meets its acceptance criterion in the spec, and never start one
   without being asked. At the end of a milestone, report and stop.
