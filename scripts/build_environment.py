@@ -25,6 +25,7 @@ from packaging.utils import canonicalize_name
 REPO = Path(__file__).resolve().parent.parent
 LOCK = REPO / "uv.lock"
 OUTPUT = REPO / "environment.yaml"
+EVAL_OUTPUT = REPO / "environment_eval.yaml"
 NAME = "astronomy-hub"
 # Sandbox platform for marker evaluation (Ubuntu 24.04, x86_64, Python 3.12).
 SANDBOX = {
@@ -46,6 +47,8 @@ ALLOWED_HOSTS = (
     "arxiv.org",  # Librarian's literature search
     "ui.adsabs.harvard.edu",
 )
+# Eval profile: the session ends at decide, so only the light curves are needed.
+EVAL_HOSTS = ALLOWED_HOSTS[:2]
 
 
 def runtime_pins(lock: dict) -> list[str]:
@@ -66,14 +69,14 @@ def runtime_pins(lock: dict) -> list[str]:
     return sorted(f"{packages[n]['name']}=={packages[n]['version']}" for n in seen)
 
 
-def render(lock: dict) -> str:
+def render(lock: dict, name: str = NAME, hosts: tuple[str, ...] = ALLOWED_HOSTS) -> str:
     lines = [
         "# Managed Agents environment. Generated from uv.lock by scripts/build_environment.py;",
         "# do not edit by hand (a test checks it). Synced with ant apply.",
         "# No packages: the default python3 is 3.11, so bin/setup-sandbox runs",
         "# `uv sync --frozen --no-default-groups --python 3.12`, which installs:",
         *(f"#   {pin}" for pin in runtime_pins(lock)),
-        f"name: {NAME}",
+        f"name: {name}",
         "config:",
         "  type: cloud",
         "  packages:  # explicitly empty: an omitted field would keep the old packages",
@@ -83,7 +86,7 @@ def render(lock: dict) -> str:
         "    allow_package_managers: true  # uv sync reaches PyPI; also opens GitHub",
         "    allow_mcp_servers: false",
         "    allowed_hosts:",
-        *(f"      - {host}" for host in ALLOWED_HOSTS),
+        *(f"      - {host}" for host in hosts),
     ]
     return "\n".join(lines) + "\n"
 
@@ -92,14 +95,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m scripts.build_environment")
     parser.add_argument("--check", action="store_true", help="fail if environment.yaml is stale")
     args = parser.parse_args(argv)
-    text = render(tomllib.loads(LOCK.read_text()))
-    if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text() != text:
-            print("environment.yaml is out of date: run python -m scripts.build_environment",
-                  file=sys.stderr)  # fmt: skip
-            return 1
-        return 0
-    OUTPUT.write_text(text)
+    lock = tomllib.loads(LOCK.read_text())
+    outputs = {OUTPUT: render(lock), EVAL_OUTPUT: render(lock, f"{NAME}-eval", EVAL_HOSTS)}
+    for path, text in outputs.items():
+        if args.check:
+            if not path.exists() or path.read_text() != text:
+                print(
+                    f"{path.name} is out of date: run python -m scripts.build_environment",
+                    file=sys.stderr,
+                )
+                return 1
+        else:
+            path.write_text(text)
     return 0
 
 

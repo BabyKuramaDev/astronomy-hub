@@ -50,8 +50,20 @@ def setup_report(records: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
+EVAL_AGENTS = (
+    "Astronomy Hub Director",
+    "Astronomy Hub Searcher",
+    "Astronomy Hub Devil's Advocate",
+    "Astronomy Hub Reviewer",
+)
+
+
 def acceptance(
-    summary: dict[str, Any], dossier: Path | None, reference_period: float, expected: str
+    summary: dict[str, Any],
+    dossier: Path | None,
+    reference_period: float,
+    expected: str,
+    required_agents: list[str] | None = None,
 ) -> dict[str, Any]:
     checks: dict[str, Any] = {}
     checks["dossier_downloaded"] = dossier is not None
@@ -72,9 +84,9 @@ def acceptance(
         period is not None and abs(period / reference_period - 1.0) <= 0.01
     )
     worked = {name for name, row in summary["agents"].items() if row["model_requests"] > 0}
-    if expected == "candidate":  # eval: all six agents take part
-        missing = sorted(set(agent_names()) - worked)
+    if required_agents:
+        missing = sorted(set(required_agents) - worked)
         checks["agents_missing"] = missing
-        checks["six_agents_worked"] = not missing
+        checks["required_agents_worked"] = not missing
     checks["passed"] = all(v for k, v in checks.items() if isinstance(v, bool))
     return checks

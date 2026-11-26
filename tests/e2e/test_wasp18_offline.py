@@ -135,11 +135,10 @@ def test_review_reproduces_and_eval_skips_the_mcmc(run: tuple[Path, dict[str, An
     assert model.planet_radius_rearth is not None
 
 
-def test_report_and_ephemeris(run: tuple[Path, dict[str, Any]]) -> None:
+def test_eval_profile_ends_at_decide(run: tuple[Path, dict[str, Any]]) -> None:
     root, _ = run
-    report = (root / "report.md").read_text()
-    assert report.startswith(f"# TIC {TIC}: candidate")
-    assert (root / "ephemeris.json").exists()
+    for name in ("report.md", "ephemeris.json", "catalog.json"):
+        assert not (root / name).exists(), f"the eval profile writes no {name}"
 
 
 def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
@@ -149,7 +148,7 @@ def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
     ]
     assert [e.tool for e in entries] == [
         "clean", "search-period", "select-peak", "fold", "fit-transit", "run-gates", "conclude",
-        "reproduce", "conclude", "decide", "ephemeris", "render-report",
+        "reproduce", "conclude", "decide",
     ]  # fmt: skip
     assert all(e.exit_code == 0 for e in entries)
     assert entries[2].reason

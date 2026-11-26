@@ -77,14 +77,15 @@ def test_director_roster() -> None:
             assert "multiagent" not in load(REPO / "contexts" / context / "agent.md")[0]
 
 
-def test_eval_order_in_the_director_prompt() -> None:
+def test_mode_orders_in_the_director_prompt() -> None:
     _, body = load(REPO / "contexts" / "direction" / "agent.md")
-    assert body.index("direction decide") < body.index(
-        "Eval mode only: delegate to Astronomy Hub Librarian"
-    )
-    assert body.index("Librarian now") < body.index("Astronomy Hub Writer.")
+    decide = body.index("direction decide")
+    assert decide < body.index("Eval mode: go straight to step 10")
+    assert "the Librarian and the Writer do not run" in body
+    assert decide < body.index("Full mode: delegate to Astronomy Hub Librarian now")
+    assert body.index("Full mode: delegate") < body.index("delegate to Astronomy Hub Writer")
     assert body.index("Astronomy Hub Writer.") < body.index("package-dossier")
-    assert "Never in eval mode" in body
+    assert "Never in eval or full mode" in body
 
 
 def test_skills_are_one_per_context_and_named_uniquely() -> None:

@@ -9,8 +9,9 @@ Each agent's choice is replaced by a fixed rule, so the run is deterministic:
   and the review: that verdict decides on its own.
 - Modeler: the MCMC only runs on a candidate in explore mode; eval metrics never use it.
 - Reviewer: reproduce and conclude.
-- Director: decide; in eval mode Catalog runs after the decision and never enters it.
-- Writer: ephemeris and render-report.
+- Director: decide. eval mode (the eval profile) ends there: no Catalog, no report.
+  full mode decides blind like eval, then runs Catalog and the report.
+- Writer: ephemeris and render-report (explore and full).
 
 Without --tic it uses WASP-18 b's TIC from tests/fixtures/wasp18/reference.json.
 The tools are called with subprocess, exactly as an agent calls them with bash.
@@ -123,7 +124,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "Scripted run without reruns: "
         + (f"gates not passing: {', '.join(failing)}." if failing else "every gate passes."),
     )
-    if vetting["verdict"] != "false_positive":
+    if vetting["verdict"] != "false_positive":  # a false positive needs no MCMC nor review
         if vetting["verdict"] == "candidate" and args.mode == "explore":
             run.tool("modeling", "fit-transit", "--mode", "mcmc", *args.mcmc)
         run.tool("review", "reproduce")
@@ -141,16 +142,22 @@ def finish(run: Runner, args: argparse.Namespace, catalog_done: bool) -> dict[st
         "direction",
         "decide",
         "--mode",
-        args.mode,
+        "explore" if args.mode == "explore" else "eval",
         "--reason",
         "Scripted run: final verdict from the Director's rule.",
     )
-    if args.mode == "eval" and "catalog" not in args.skip and not catalog_done:
-        run.tool("catalog", "crossmatch")  # blind mode: after the decision
     root = args.workspace / args.mission / str(args.tic)
+    if args.mode == "eval":  # the eval profile ends at decide
+        return summary_of(run, args, decision, root)
+    if args.mode == "full" and "catalog" not in args.skip and not catalog_done:
+        run.tool("catalog", "crossmatch")  # blind: after the decision
     if (root / "model.json").exists() and decision["final"] in ("candidate", "inconclusive"):
         run.tool("followup", "ephemeris", *(["--start", args.start] if args.start else []))
     run.tool("reporting", "render-report")
+    return summary_of(run, args, decision, root)
+
+
+def summary_of(run: Runner, args: argparse.Namespace, decision: Any, root: Path) -> dict[str, Any]:
     return {
         "tic_id": args.tic,
         "mode": args.mode,
@@ -168,7 +175,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--tic", type=int, help="TIC id (default: WASP-18 b from the fixtures)")
-    parser.add_argument("--mode", choices=["eval", "explore"], default="eval")
+    parser.add_argument("--mode", choices=["eval", "full", "explore"], default="eval")
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
     parser.add_argument("--mission", default="exoplanets")
     parser.add_argument(

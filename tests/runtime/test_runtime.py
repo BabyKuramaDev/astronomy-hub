@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from runtime.audit import audit, check_command
-from runtime.checks import acceptance, agent_names, setup_report
+from runtime.checks import EVAL_AGENTS, acceptance, agent_names, setup_report
 from runtime.ledger import SpendCapError, record, spent_cents
 from runtime.managed import ManagedAgentsRuntime, RunConfig
 from runtime.outputs import extract, validate
@@ -213,10 +213,11 @@ def test_acceptance_checks(tmp_path: Path) -> None:
     platform = FakePlatform([list(PRIMARY)], dossier_tarball())
     result = ManagedAgentsRuntime(platform, config(tmp_path)).run(TIC, "exoplanets", "eval", 500)
     summary = json.loads(result.summary_file.read_text())
-    passed = acceptance(summary, result.dossier, 0.9414522, "candidate")
+    passed = acceptance(summary, result.dossier, 0.9414522, "candidate", agent_names())
     assert passed["passed"], passed
     summary["agents"].pop("Astronomy Hub Writer")
-    failed = acceptance(summary, result.dossier, 0.5, "candidate")
+    assert acceptance(summary, result.dossier, 0.9414522, "candidate", list(EVAL_AGENTS))["passed"]
+    failed = acceptance(summary, result.dossier, 0.5, "candidate", agent_names())
     assert failed["agents_missing"] == ["Astronomy Hub Writer"]
     assert not failed["period_within_1_percent"]
     assert not failed["passed"]

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from shared.contracts import CatalogFile, DecisionFile, SignalFile, VettingFile
+from shared.contracts import DecisionFile, SignalFile, VettingFile
 from shared.toolkit.dossier import Dossier
 from tests.e2e.wasp18 import build_dossier, reference
 
@@ -26,7 +26,7 @@ def test_wasp18_complete_dossier(tmp_path: Path) -> None:
         "false_positive"
     )
     assert summary["final"] == "candidate"
-    assert Dossier(root).read_envelope("catalog.json", CatalogFile).data.status == "known_planet"
+    assert not (root / "catalog.json").exists()  # the eval profile ends at decide
 
     explore = build_dossier(TIC, tmp_path, "--mode", "explore", "--skip", "acquisition")
     assert explore["final"] == "known"

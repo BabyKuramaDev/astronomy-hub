@@ -89,4 +89,4 @@ def test_false_positive_skips_mcmc_and_review(eb: tuple[Path, dict]) -> None:
     assert Dossier(root).read_envelope("model.json", ModelFile).data.method == "quick"
     assert not (root / "review.json").exists()
     assert not (root / "ephemeris.json").exists()
-    assert (root / "report.md").read_text().startswith(f"# TIC {TIC}: false_positive")
+    assert not (root / "report.md").exists()  # the eval profile ends at decide

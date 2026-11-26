@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-RunMode = Literal["explore", "eval"]
+# eval: blind, ends at decide; full: eval plus Librarian and Writer (smoke test of the
+# six agents); explore: Catalog may stop the case early.
+RunMode = Literal["explore", "eval", "full"]
 Event = dict[str, Any]
 
 
