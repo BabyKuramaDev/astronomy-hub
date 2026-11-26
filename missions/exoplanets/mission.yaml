@@ -43,8 +43,8 @@ detection:
 
 modeling:
   walkers: 32
-  steps: 3000
-  burn: 1000
+  steps: 8000                    # WASP-18 b: tau_max ~100, so 6000 post-burn steps > 50 tau
+  burn: 2000
   seed: 42
   window_durations: 3.0          # only data within +/- 3 durations of a transit is fitted
   autocorr_factor: 50.0          # converged when post-burn steps > factor * max tau
