@@ -17,8 +17,16 @@ behavior, and update it in the same change when a decision changes.
 ## Working rules
 
 - Milestones go in order (M0 to M5). Do not start the next one until the
-  current one meets its acceptance criterion in the spec.
+  current one meets its acceptance criterion in the spec, and never start one
+  without being asked. At the end of a milestone, report and stop.
+- Plan before code: for each milestone, first check free disk space (stop and
+  warn if under 5 GB), then propose the plan (files, new dependencies with their
+  approximate size, open questions) and wait for the author's ok.
+- Fold the author's answers into `docs/SPEC.md` before or with the code, so spec
+  and code match. Questions outside the current milestone go to the spec's open
+  questions instead of being resolved early.
 - Small commits with messages in English. Never push unless asked.
+- New dependencies: only what the milestone needs, pinned with `==`.
 - Never commit `.env` or any key. `.env.example` lists the variables.
 - No API credits are used before M3.
 
@@ -81,5 +89,6 @@ Tracked at the end of `docs/SPEC.md`. Detection records its choice with
 
 - batman 2.5.3 imports `distutils`; `contexts/modeling/domain/transit.py` imports
   `setuptools` first so the shim does not depend on a `.pth` file.
-- This checkout lives under an iCloud-managed `~/Documents`: macOS may mark dotfiles
-  hidden (Python then skips `.pth` files) and create `"<name> 2"` conflict copies.
+- Keep the checkout outside iCloud-managed folders such as `~/Documents`: the file
+  provider marks dotfiles hidden (Python then skips `.pth` files in `.venv`) and
+  creates `"<name> 2"` conflict copies. Check disk space before large downloads.

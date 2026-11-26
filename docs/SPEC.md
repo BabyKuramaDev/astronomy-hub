@@ -274,6 +274,17 @@ Regla de selección de sectores (`acquisition.sector_selection.rule: longest_con
 3. Si la corrida tiene más de `max_sectors`, se quedan sus `max_sectors` sectores más recientes.
 4. No se agregan sectores de otras corridas: un baseline compacto mantiene chica la grilla de BLS.
 
+Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también lista productos multisector de Data Validation (por ejemplo `s0001-s0036`) con el último sector como `sequence_number`; no traen curva y se ignoran.
+
+**Notas de implementación de M1**
+
+- `fetch-lightcurves` deja los FITS crudos en `lightcurve/` y, por sector, una tabla `sNNNN.parquet` con `PDCSAP_FLUX` sin NaN ni `QUALITY` distinto de 0. `clean` lee esas tablas a través de `lightcurve/manifest.json` y nunca los FITS.
+- `search-period` examina como máximo 4 × `n_peaks` picos distintos, para que la lista de descartados no crezca sin límite en una estrella sin señal. Es una constante del código (`EXAMINE_FACTOR`), no un parámetro de la misión.
+- `peak_separation: 0.02`: con un sector y duraciones de 6 h, los lóbulos laterales del BLS llegan a ~1% del período.
+- `fold` escribe, además de los datos y la figura, `folds/<tag>.json` validado con el mismo resumen que imprime por stdout. Las profundidades se miden tránsito por tránsito: con errores punto a punto, WASP-18 b mostraba una diferencia par/impar espuria de 5,9σ (1,6σ con dispersión entre tránsitos). La prueba 5 de M2 debería usar el mismo criterio.
+- `fit-transit` corre por defecto 8000 pasos con 2000 de burn-in: con 3000 y 1000, la cadena de WASP-18 b no llegaba a 50 τ (τ_max ≈ 74); con 8000 converge (τ_max ≈ 103) en unos 3,5 minutos.
+- batman 2.5.3 importa `distutils`, que Python 3.12 ya no trae; `setuptools` aporta el reemplazo.
+
 **Las diez pruebas de descarte**
 
 Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos.
@@ -507,7 +518,7 @@ Como referencia de dificultad, el pipeline de [ahrazzle/exoplanets](https://gith
 
 **Tres niveles de prueba**
 
-1. Tests unitarios de tools con pytest, sin LLM ni red, sobre curvas de luz chicas guardadas como fixtures.
+1. Tests unitarios de tools con pytest, sin LLM ni red, sobre curvas de luz sintéticas generadas con semilla y fixtures reales chicos. `make test` corre sin red: un `conftest.py` en la raíz bloquea la red para todo test sin el marker `network`. Los fixtures de WASP-18 b (`tests/fixtures/wasp18/`, menos de 1 MB) los genera un script a partir de catálogos y guardan su procedencia. Los tests que van a MAST llevan el marker `network`, se corren con `make test-network` y quedan fuera de `make test` y del CI.
 2. Controles sintéticos de las pruebas de descarte: binarias eclipsantes, glitches de un sector y variables por rotación deben ser rechazadas, y tránsitos inyectados deben pasar. Las curvas invertidas, donde cualquier bajón es ruido, sirven para estimar la tasa de falsas alarmas.
 3. Evals de agentes sobre el set, con `make eval-dev` y `make eval-holdout`.
 
@@ -554,7 +565,7 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 - Esquema exacto del bloque `multiagent` en el frontmatter de `agent.md`.
 - Lista completa de hosts que usa astroquery para bajar datos de TESS.
 - Nombre exacto de la columna de disposición en la lista TOI de ExoFOP y sus valores.
-- Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano.
+- [x] Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano: sale de la tabla `pscomppars` del NASA Exoplanet Archive y queda, con la consulta y la fecha, en `tests/fixtures/wasp18/reference.json`.
 
 **Preguntas abiertas**
 
@@ -565,6 +576,17 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 - [ ] Qué estrellas explora el Director después de los evals. Propuesta: enanas cercanas de tipo K y M, como los repos de referencia.
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
 - [ ] Objetivos definitivos de los evals, después de la primera corrida.
+
+**Dudas para M2**
+
+Salieron de M1 y hay que resolverlas en M2, no antes.
+
+1. **El SNR de ruido blanco no alcanza como prueba.** En una curva invertida, donde cualquier bajón es ruido, BLS encuentra cajas de 6 h y unos 200 ppm con SNR entre 11 y 17, por encima de `snr_min`. Hay que comparar con la definición de la prueba 3 del repo de referencia (puede usar SDE o ruido rojo).
+2. **Un segundo planeta real puede quedar oculto como armónico.** Si su período cae dentro de `harmonic_tolerance` de una razón entera del pico principal, sale de los picos elegibles. La probabilidad por azar ronda el 4%. Se suma el tope de 4 × `n_peaks` picos examinados.
+3. **Curva de fase de los Júpiter calientes.** WASP-18 b muestra unos 200 ppm de profundidad a 1-3 h del tránsito por su curva de fase. La prueba 6 (ausencia de eclipse secundario) puede descartar planetas reales de este tipo.
+4. **Errores del ajuste posiblemente subestimados.** El modelo no tiene término de jitter ni de ruido rojo; el período ajustado de WASP-18 b queda a 2,5σ del de catálogo.
+5. **Cómo registran su decisión** el Abogado del diablo, el Revisor y el Director (ver la pregunta abierta de arriba).
+6. **Tiempo por estrella y caídas de MAST.** Una estrella tarda unos 4 minutos, casi todo del ajuste; importa para el presupuesto de M4. Durante M1, MAST estuvo caído cerca de una hora: las tools salen con exit 3 y quizás `runtime/` tenga que reintentar.
 
 ## Referencias
 
