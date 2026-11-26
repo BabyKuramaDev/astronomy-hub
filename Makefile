@@ -1,4 +1,4 @@
-.PHONY: install test lint format
+.PHONY: install test test-network lint format
 
 install:
 	uv sync
@@ -6,6 +6,9 @@ install:
 
 test:
 	uv run pytest
+
+test-network:
+	uv run pytest -m network
 
 lint:
 	uv run ruff check .

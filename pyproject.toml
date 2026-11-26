@@ -32,7 +32,10 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "contexts"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not network"]
+markers = [
+    "network: talks to MAST or other remote services; excluded from make test and CI",
+]
 xfail_strict = true
 
 [tool.ruff]

@@ -1,0 +1,49 @@
+{
+  "available_sectors": [
+    2,
+    3,
+    29,
+    30,
+    69,
+    96,
+    103,
+    104,
+    105,
+    106
+  ],
+  "files": [
+    {
+      "fixture": "s0103_trimmed.fits",
+      "fixture_sha256": "sha256:f12e640add37912f4b575b3d500cb242b24af139501c6deb9d4cf5eed800e4af",
+      "original_file": "tess2026111101500-s0103-0000000100100827-0305-s_lc.fits",
+      "original_sha256": "sha256:99c20a20c8a1027528f6974f30a6e48a38070083bdb9d7155bcd3eeff98274db",
+      "original_uri": "mast:TESS/product/tess2026111101500-s0103-0000000100100827-0305-s_lc.fits",
+      "rows_kept": [
+        1104,
+        3263
+      ],
+      "sector": 103,
+      "time_range_btjd": [
+        4153.556211197787,
+        4156.554934844424
+      ]
+    },
+    {
+      "fixture": "s0104_trimmed.fits",
+      "fixture_sha256": "sha256:a7025ca1b18a50c560f7ba60bf51a9ec92c3d42ab7d6c080cb17110ffec7f874",
+      "original_file": "tess2026137223500-s0104-0000000100100827-0306-s_lc.fits",
+      "original_sha256": "sha256:98f01b99da07122f63c58000af48d6fcfa8ad39651e8e3fe0409171a443f9444",
+      "original_uri": "mast:TESS/product/tess2026137223500-s0104-0000000100100827-0306-s_lc.fits",
+      "rows_kept": [
+        946,
+        3105
+      ],
+      "sector": 104,
+      "time_range_btjd": [
+        4179.893494977444,
+        4182.892274525886
+      ]
+    }
+  ],
+  "retrieved_at": "2026-11-26T18:47:23Z"
+}
