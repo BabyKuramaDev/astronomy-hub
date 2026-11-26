@@ -1,0 +1,38 @@
+# Install with `make install`. ruff and import-linter run from the uv
+# environment so their versions come from uv.lock, not from this file.
+# gitleaks uses the binary on PATH (`brew install gitleaks`) instead of
+# building it from source with Go.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks-system
+        pass_filenames: false  # missing upstream in v8.30.1
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: lint-imports
+        name: import-linter
+        entry: uv run lint-imports
+        language: system
+        types: [python]
+        pass_filenames: false
