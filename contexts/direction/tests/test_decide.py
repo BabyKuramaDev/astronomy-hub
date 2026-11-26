@@ -158,3 +158,50 @@ def test_a_catalog_cut_ignores_leftover_files(
         "vetting.json"
         not in Dossier(root(tmp_path)).read_envelope("decision.json", DecisionFile).inputs
     )
+
+
+def test_package_dossier(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    import tarfile
+
+    dossier_with(root(tmp_path), catalog=None, vetting="false_positive", review=None)
+    (root(tmp_path) / ".cache").mkdir()
+    (root(tmp_path) / ".cache" / "junk").write_text("x")
+    dest = tmp_path / "outputs"
+    argv = ["package-dossier", "--tic", str(TIC), "--workspace", str(tmp_path), "--dest", str(dest)]
+    assert main(argv) == 3  # no decision.json yet
+    capsys.readouterr()
+    assert run(tmp_path, "eval") == 0
+    capsys.readouterr()
+    assert main(argv) == 0
+    summary = json.loads(capsys.readouterr().out)
+    archive = dest / f"dossier-{TIC}.tar.gz"
+    with tarfile.open(archive) as tar:
+        names = tar.getnames()
+    assert f"{TIC}/decision.json" in names
+    assert not any(".cache" in n for n in names)
+    assert set(summary["validated"]) == {"signal.json", "vetting.json", "decision.json"}
+
+
+def test_pack_is_deterministic(tmp_path: Path) -> None:
+    from contexts.direction.infrastructure.tarball import pack
+
+    src = tmp_path / "123"
+    (src / "folds").mkdir(parents=True)
+    (src / "a.json").write_text("{}")
+    (src / "folds" / "b.json").write_text("[]")
+    first = pack(src, ["folds/b.json", "a.json"], tmp_path / "x.tar.gz")
+    (src / "a.json").touch()  # a new mtime must not change the archive
+    assert pack(src, ["a.json", "folds/b.json"], tmp_path / "y.tar.gz") == first
+
+
+def test_package_dossier_rejects_an_invalid_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dossier_with(root(tmp_path), catalog=None, vetting="false_positive", review=None)
+    assert run(tmp_path, "eval") == 0
+    (root(tmp_path) / "vetting.json").write_text('{"broken": true}')
+    argv = ["package-dossier", "--tic", str(TIC), "--workspace", str(tmp_path),
+            "--dest", str(tmp_path / "out")]  # fmt: skip
+    capsys.readouterr()
+    assert main(argv) == 2
+    assert "vetting.json does not match its contract" in capsys.readouterr().err

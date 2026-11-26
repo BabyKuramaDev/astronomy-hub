@@ -136,3 +136,24 @@ def test_transient_errors_are_retried_then_data_not_available() -> None:
     with pytest.raises(DataNotAvailableError, match="pscomppars query failed"):
         catalogs.confirmed_planets(TIC)
     assert len(calls) == 3
+
+
+def test_add_literature(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from contexts.catalog.cli import main
+
+    root = tmp_path / "exoplanets" / str(TIC)
+    argv = ["add-literature", "--tic", str(TIC), "--workspace", str(tmp_path),
+            "--title", "Discovery paper", "--url", "https://arxiv.org/abs/0000.00000",
+            "--note", "Reports the period."]  # fmt: skip
+    assert main(argv) == 2  # no catalog.json yet
+    assert "run crossmatch first" in capsys.readouterr().err
+    Crossmatch(FakeCatalogs(), Dossier(root), meta(Context.CATALOG, "crossmatch"), CONFIG).execute()
+    before = Dossier(root).read_envelope("catalog.json", CatalogFile)
+    assert main(argv) == 0
+    assert main(argv) == 0  # same URL: not added twice
+    after = Dossier(root).read_envelope("catalog.json", CatalogFile)
+    assert [r.title for r in after.data.literature] == ["Discovery paper"]
+    assert after.inputs == before.inputs
+    assert after.data.status == before.data.status
+    bad = [*argv[:-4], "--url", "not a url"]
+    assert main(bad) == 2
