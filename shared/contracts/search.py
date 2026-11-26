@@ -23,6 +23,8 @@ class SearchPeak(ContractModel):
     duration_hours: PositiveFloat
     depth_ppm: PositiveFloat
     snr: NonNegativeFloat
+    # Signal detection efficiency of the periodogram; data only, never a threshold.
+    sde: float
     n_transits: PositiveInt
     power: float
 
@@ -33,6 +35,7 @@ class DiscardedPeak(ContractModel):
     duration_hours: PositiveFloat
     depth_ppm: float
     snr: float
+    sde: float
     power: float
     reason: Literal["non_positive_depth", "harmonic"]
     harmonic_of: PeakId | None
@@ -59,6 +62,8 @@ class PeriodSearchData(ContractModel):
     durations_hours: Annotated[list[PositiveFloat], Field(min_length=1)]
     bin_minutes: PositiveFloat
     n_periods: PositiveInt
+    # Highest SNR of the same search on the inverted light curve: the star's noise floor.
+    inverted_snr_max: NonNegativeFloat
     peaks: list[SearchPeak]
     discarded: list[DiscardedPeak]
 

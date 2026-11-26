@@ -47,10 +47,18 @@ class FoldConfig(ContractModel):
     n_bins: Annotated[int, Field(ge=3)]
 
 
+class DurationLimit(ContractModel):
+    """Envelope for the longest possible transit at each period (Kepler's third law)."""
+
+    stellar_density_min_solar: PositiveFloat
+    rp_rs_max: Annotated[float, Field(gt=0, lt=1)]
+
+
 class DetectionConfig(ContractModel):
     period_min_days: PositiveFloat
     period_max_days: PositiveFloat
     durations_hours: Annotated[list[PositiveFloat], Field(min_length=1)]
+    duration_limit: DurationLimit
     bin_minutes: PositiveFloat
     frequency_factor: PositiveFloat
     n_peaks: PositiveInt
@@ -59,6 +67,7 @@ class DetectionConfig(ContractModel):
     harmonic_max_integer: Annotated[int, Field(ge=2)]
     harmonic_tolerance: PositiveFloat
     snr_min: PositiveFloat
+    floor_mask_durations: PositiveFloat
     min_transits: PositiveInt
     fold: FoldConfig
 

@@ -12,6 +12,7 @@ def peak(n: int, snr: float = 20.0, n_transits: int = 10) -> SearchPeak:
         duration_hours=2.0,
         depth_ppm=1000.0,
         snr=snr,
+        sde=10.0,
         n_transits=n_transits,
         power=10.0,
     )
@@ -25,6 +26,7 @@ SEARCH = PeriodSearchData(
     durations_hours=[2.0],
     bin_minutes=10.0,
     n_periods=100,
+    inverted_snr_max=7.0,
     peaks=[peak(1), peak(2, snr=5.0), peak(3, n_transits=2)],
     discarded=[],
 )

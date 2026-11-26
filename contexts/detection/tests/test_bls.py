@@ -11,6 +11,7 @@ from contexts.detection.domain.bls import (
     bin_lightcurve,
     first_epoch,
     harmonic_ratio,
+    max_duration_days,
     search_periods,
     triage,
 )
@@ -129,3 +130,29 @@ def test_short_baseline_is_rejected() -> None:
 def test_search_is_deterministic() -> None:
     time, flux, err = light_curve(days=27.0, transit=TRANSIT, noise_ppm=1000.0, seed=2)
     assert search_periods(time, flux, err, PARAMS) == search_periods(time, flux, err, PARAMS)
+
+
+def test_max_duration_follows_keplers_third_law() -> None:
+    # Sun-like density: a/R* = 215 at one year, so T_max ~ (P/pi) * asin(1/215) ~ 13 h.
+    year = 365.25
+    t_max = float(max_duration_days(year, 1.0, 0.0)) * 24.0
+    assert t_max == pytest.approx(13.0, rel=0.03)
+    short, long = max_duration_days(np.array([0.5, 10.0]), 0.05, 0.3)
+    assert short == pytest.approx(0.25)  # the orbit is inside the star: half the period
+    assert 0.25 < long < 10.0 / 2
+
+
+def test_search_skips_impossible_durations() -> None:
+    params = replace(PARAMS, stellar_density_min_solar=50.0, rp_rs_max=0.1)
+    time, flux, err = light_curve(days=27.0, transit=TRANSIT, noise_ppm=1000.0, seed=2)
+    outcome = search_periods(time, flux, err, params)
+    for peak in outcome.peaks:
+        limit = float(max_duration_days(peak.period_days, 50.0, 0.1)) * 24.0
+        assert peak.duration_hours <= limit + 1e-9
+
+
+def test_inverted_floor_and_sde() -> None:
+    time, flux, err = light_curve(days=27.0, transit=TRANSIT, noise_ppm=1000.0, seed=2)
+    outcome = search_periods(time, flux, err, PARAMS)
+    assert 0.0 < outcome.inverted_snr_max < outcome.peaks[0].snr
+    assert outcome.peaks[0].sde > 5.0

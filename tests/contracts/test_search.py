@@ -14,6 +14,7 @@ def peak(n: int, period: float = 1.0) -> dict[str, Any]:
         "duration_hours": 2.0,
         "depth_ppm": 1000.0,
         "snr": 20.0,
+        "sde": 12.0,
         "n_transits": 10,
         "power": 50.0,
     }
@@ -26,6 +27,7 @@ def discarded(**overrides: Any) -> dict[str, Any]:
         "duration_hours": 2.0,
         "depth_ppm": 500.0,
         "snr": 9.0,
+        "sde": 4.0,
         "power": 20.0,
         "reason": "harmonic",
         "harmonic_of": "p1",
@@ -44,6 +46,7 @@ def search() -> dict[str, Any]:
         "durations_hours": [1.0, 2.0],
         "bin_minutes": 10.0,
         "n_periods": 10000,
+        "inverted_snr_max": 9.5,
         "peaks": [peak(1), peak(2, 3.3)],
         "discarded": [
             discarded(),

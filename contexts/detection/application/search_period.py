@@ -30,6 +30,9 @@ def params_from(config: DetectionConfig) -> SearchParams:
         harmonic_max_integer=config.harmonic_max_integer,
         harmonic_tolerance=config.harmonic_tolerance,
         min_transits=config.min_transits,
+        stellar_density_min_solar=config.duration_limit.stellar_density_min_solar,
+        rp_rs_max=config.duration_limit.rp_rs_max,
+        floor_mask_durations=config.floor_mask_durations,
     )
 
 
@@ -55,6 +58,7 @@ class SearchPeriod:
                 duration_hours=c.duration_hours,
                 depth_ppm=c.depth_ppm,
                 snr=max(c.snr, 0.0),
+                sde=c.sde,
                 n_transits=max(c.n_transits, 1),
                 power=c.power,
             )
@@ -67,6 +71,7 @@ class SearchPeriod:
                 duration_hours=d.candidate.duration_hours,
                 depth_ppm=d.candidate.depth_ppm,
                 snr=d.candidate.snr,
+                sde=d.candidate.sde,
                 power=d.candidate.power,
                 reason=d.reason,  # type: ignore[arg-type]
                 harmonic_of=f"p{d.harmonic_of + 1}" if d.harmonic_of is not None else None,
@@ -82,6 +87,7 @@ class SearchPeriod:
             durations_hours=list(outcome.durations_hours),
             bin_minutes=self.config.bin_minutes,
             n_periods=outcome.n_periods,
+            inverted_snr_max=outcome.inverted_snr_max,
             peaks=peaks,
             discarded=discarded,
         )
@@ -91,6 +97,7 @@ class SearchPeriod:
             "n_periods": outcome.n_periods,
             "period_range_days": [data.period_min_days, round(data.period_max_days, 4)],
             "snr_min": self.config.snr_min,
+            "inverted_snr_max": round(outcome.inverted_snr_max, 2),
             "min_transits": self.config.min_transits,
             "peaks": [
                 {
@@ -99,6 +106,7 @@ class SearchPeriod:
                     "duration_hours": round(p.duration_hours, 2),
                     "depth_ppm": round(p.depth_ppm, 1),
                     "snr": round(p.snr, 2),
+                    "sde": round(p.sde, 1),
                     "n_transits": p.n_transits,
                 }
                 for p in peaks
