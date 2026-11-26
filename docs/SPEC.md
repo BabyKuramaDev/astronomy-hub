@@ -263,7 +263,7 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 - Es idempotente y usa semilla fija donde hay azar.
 - Agrega una línea a `log.jsonl`.
 - Los umbrales y parámetros que usa salen de `mission.yaml`, validado por el schema de `shared/mission.py`.
-- Las descargas van al expediente. Las cachés de astropy y astroquery se redirigen a `<expediente>/.cache/`, y el caché de fuentes de matplotlib a `<workspace>/.cache/matplotlib`, compartido entre estrellas; nada se escribe en cachés globales.
+- Las descargas van al expediente. Las cachés de astropy y astroquery se redirigen a `<expediente>/.cache/`, el caché de fuentes de matplotlib a `<workspace>/.cache/matplotlib` y los kernels compilados de numba (wotan, transitleastsquares) a `<workspace>/.cache/numba`, compartidos entre estrellas; nada se escribe en cachés globales ni en `site-packages`.
 
 | Contexto | Tool | Qué hace | Librería sugerida |
 | --- | --- | --- | --- |

@@ -5,10 +5,18 @@ subprocesses inherit HTTP(S) proxies that point to a closed local port, so any
 request they make fails instead of reaching MAST.
 """
 
+import os
 import socket
+from pathlib import Path
 from typing import Any
 
 import pytest
+
+# numba kernels compiled in the pytest process (wotan, transitleastsquares) are cached
+# here instead of in site-packages; numba reads this before anything imports it.
+os.environ.setdefault(
+    "NUMBA_CACHE_DIR", str(Path(__file__).resolve().parent / ".pytest_cache" / "numba")
+)
 
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
 DEAD_PROXY = "http://127.0.0.1:9"

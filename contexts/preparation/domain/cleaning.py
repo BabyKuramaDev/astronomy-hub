@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
-from wotan import flatten
 
 MAD_TO_SIGMA = 1.4826
 
@@ -53,6 +52,10 @@ def normalize(series: SectorSeries) -> SectorSeries:
 def detrend(
     time: np.ndarray, flux: np.ndarray, window_days: float, break_tolerance_days: float
 ) -> tuple[np.ndarray, np.ndarray]:
+    # Imported here, not at module level: numba binds its cache directory when wotan's
+    # kernels are decorated, and the tool sets NUMBA_CACHE_DIR (isolated_caches) first.
+    from wotan import flatten
+
     flat, trend = flatten(
         time,
         flux,

@@ -70,7 +70,8 @@ injects a violation into a temporary copy of the repo.
 - Thresholds and parameters come from `missions/<mission>/mission.yaml`, validated
   by `shared/mission.py`. Add new ones there, never as constants in a context.
 - Downloads go to the dossier; astropy/astroquery caches go to `<dossier>/.cache`,
-  matplotlib's font cache to `<workspace>/.cache`. Never write to global caches.
+  matplotlib's font cache and numba's compiled kernels to `<workspace>/.cache`.
+  Never write to global caches or into `site-packages`.
 
 ## Tests
 

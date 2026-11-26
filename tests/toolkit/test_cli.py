@@ -104,6 +104,9 @@ def test_caches_stay_inside_the_dossier(tmp_path: Path) -> None:
 
         seen["astropy"] = get_cache_dir()
         seen["mpl"] = os.environ["MPLCONFIGDIR"]
+        from numba.core import config
+
+        seen["numba"] = config.CACHE_DIR
         return ToolResult(summary={})
 
     tools = ToolCli(Context.DETECTION)
@@ -112,3 +115,7 @@ def test_caches_stay_inside_the_dossier(tmp_path: Path) -> None:
     cache = tmp_path / "exoplanets" / "7" / ".cache"
     assert Path(seen["astropy"]).is_relative_to(cache)
     assert Path(seen["mpl"]) == tmp_path / ".cache" / "matplotlib"
+    assert Path(seen["numba"]) == tmp_path / ".cache" / "numba"
+    from numba.core import config
+
+    assert Path(config.CACHE_DIR) != tmp_path / ".cache" / "numba"  # restored afterwards
