@@ -125,3 +125,7 @@ review:
   period_tolerance: 0.001        # period within 0.1 percent
   depth_tolerance: 0.2           # depth within 20 percent
   alias_max_integer: 10          # integer multiples and submultiples count as partial
+
+followup:
+  horizon_days: 30.0             # ephemeris lists the transits of the next 30 days
+  max_transits: 20               # at most

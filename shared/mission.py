@@ -231,6 +231,11 @@ class ReviewConfig(ContractModel):
     alias_max_integer: Annotated[int, Field(ge=2)]
 
 
+class FollowupConfig(ContractModel):
+    horizon_days: PositiveFloat
+    max_transits: PositiveInt
+
+
 class MissionConfig(ContractModel):
     name: Slug
     description: NonEmptyStr
@@ -241,6 +246,7 @@ class MissionConfig(ContractModel):
     catalog: CatalogConfig
     vetting: VettingConfig
     review: ReviewConfig
+    followup: FollowupConfig
 
 
 class MissionError(ValueError):
