@@ -34,3 +34,58 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "N"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["contexts", "shared", "evals", "runtime"]
+
+[tool.importlinter]
+root_packages = ["contexts", "shared", "evals", "runtime"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Contexts are independent of each other"
+type = "independence"
+modules = [
+    "contexts.direction",
+    "contexts.acquisition",
+    "contexts.preparation",
+    "contexts.detection",
+    "contexts.modeling",
+    "contexts.catalog",
+    "contexts.vetting",
+    "contexts.review",
+    "contexts.followup",
+    "contexts.reporting",
+]
+
+[[tool.importlinter.contracts]]
+name = "shared does not import contexts"
+type = "forbidden"
+source_modules = ["shared"]
+forbidden_modules = ["contexts"]
+
+[[tool.importlinter.contracts]]
+name = "Layers inside each context: cli -> infrastructure -> application -> domain"
+type = "layers"
+layers = ["cli", "infrastructure", "application", "domain"]
+containers = [
+    "contexts.direction",
+    "contexts.acquisition",
+    "contexts.preparation",
+    "contexts.detection",
+    "contexts.modeling",
+    "contexts.catalog",
+    "contexts.vetting",
+    "contexts.review",
+    "contexts.followup",
+    "contexts.reporting",
+]
+
+[[tool.importlinter.contracts]]
+name = "Only runtime imports anthropic"
+type = "forbidden"
+source_modules = ["contexts", "shared", "evals"]
+forbidden_modules = ["anthropic"]
+
+[[tool.importlinter.contracts]]
+name = "evals does not import contexts"
+type = "forbidden"
+source_modules = ["evals"]
+forbidden_modules = ["contexts"]
