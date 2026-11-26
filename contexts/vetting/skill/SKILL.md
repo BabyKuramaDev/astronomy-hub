@@ -5,6 +5,21 @@ description: Try to reject a signal with the ten vetting gates, rerun doubtful g
 
 # hub-vetting
 
+## Commands
+
+Run from `/workspace/astronomy-hub`; `bin/hub --help` lists every tool. Exact syntax, then an example:
+
+```
+bin/hub vetting run-gates --tic <TIC>
+  e.g. bin/hub vetting run-gates --tic 123456789
+bin/hub vetting run-gate --tic <TIC> --gate <gate> [--duration-scale <duration_scale>] [--window-durations <window_durations>]
+  e.g. bin/hub vetting run-gate --tic 123456789 --gate odd-even --duration-scale 0.8
+bin/hub vetting conclude --tic <TIC> --rationale <rationale>
+  e.g. bin/hub vetting conclude --tic 123456789 --rationale "odd-even: 0.4 sigma; secondary: none; all gates pass"
+```
+
+Do not explore the repository: these commands, the JSON they print and the dossier files are all you need.
+
 Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [options]` (the repository is mounted at `/workspace/astronomy-hub`; run `cd /workspace/astronomy-hub` first). Each tool prints a short JSON summary on stdout and writes its files into the dossier `workspace/exoplanets/<TIC>/`. Exit codes: 0 ok, 2 invalid input, 3 data not available; the error is one line on stderr. Thresholds live in `missions/exoplanets/mission.yaml`; read them there, never assume them.
 
 ## Tools

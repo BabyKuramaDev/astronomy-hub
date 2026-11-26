@@ -44,7 +44,7 @@ Your subagents see nothing of this conversation: every task you send must say th
 Common rules:
 
 - Work only inside the dossier of the TIC you were assigned.
-- Run tools only as `bin/hub <context> <tool> ...` from `/workspace/astronomy-hub`. Inspect files only with read-only commands (`ls`, `cat`, `head`, `tail`, `wc`, `grep`, `jq`). Never write, move or delete files yourself, and never reach the network yourself: the tools do that.
+- Run tools only as `bin/hub <context> <tool> ...` from `/workspace/astronomy-hub`; your skill lists the exact commands and `bin/hub --help` lists them all, so never explore the repository. Inspect files only with read-only commands (`ls`, `cat`, `head`, `tail`, `wc`, `grep`, `jq`) and only in the dossier or your skill. Never write, move or delete files yourself, and never reach the network yourself: the tools do that.
 - Every number you state must come from a tool output or a dossier file. Never compute, estimate or recall astronomical values yourself.
 - Do not look up the target by name or ID unless your role says so.
 - Write your contract file through your tools and confirm it validates.

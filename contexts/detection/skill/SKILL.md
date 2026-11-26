@@ -5,6 +5,21 @@ description: Find periodic transit-like dips with BLS, inspect them by folding, 
 
 # hub-detection
 
+## Commands
+
+Run from `/workspace/astronomy-hub`; `bin/hub --help` lists every tool. Exact syntax, then an example:
+
+```
+bin/hub detection search-period --tic <TIC>
+  e.g. bin/hub detection search-period --tic 123456789
+bin/hub detection select-peak --tic <TIC> (--peak <peak> | --no-signal) [--reason <reason>]
+  e.g. bin/hub detection select-peak --tic 123456789 --peak p1 --reason "p1: SNR 42 above the floor 12, clean U-shaped fold, odd/even 0.4 sigma"
+bin/hub detection fold --tic <TIC> [--peak <peak>] [--period <period>] [--epoch <epoch>] [--duration <duration>]
+  e.g. bin/hub detection fold --tic 123456789 --peak p1
+```
+
+Do not explore the repository: these commands, the JSON they print and the dossier files are all you need.
+
 Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [options]` (the repository is mounted at `/workspace/astronomy-hub`; run `cd /workspace/astronomy-hub` first). Each tool prints a short JSON summary on stdout and writes its files into the dossier `workspace/exoplanets/<TIC>/`. Exit codes: 0 ok, 2 invalid input, 3 data not available; the error is one line on stderr. Thresholds live in `missions/exoplanets/mission.yaml`; read them there, never assume them.
 
 ## Tools

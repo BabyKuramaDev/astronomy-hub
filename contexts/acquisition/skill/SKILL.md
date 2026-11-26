@@ -5,6 +5,19 @@ description: Download TESS SPOC light curves and TIC stellar parameters into the
 
 # hub-acquisition
 
+## Commands
+
+Run from `/workspace/astronomy-hub`; `bin/hub --help` lists every tool. Exact syntax, then an example:
+
+```
+bin/hub acquisition fetch-lightcurves --tic <TIC>
+  e.g. bin/hub acquisition fetch-lightcurves --tic 123456789
+bin/hub acquisition fetch-star --tic <TIC>
+  e.g. bin/hub acquisition fetch-star --tic 123456789
+```
+
+Do not explore the repository: these commands, the JSON they print and the dossier files are all you need.
+
 Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [options]` (the repository is mounted at `/workspace/astronomy-hub`; run `cd /workspace/astronomy-hub` first). Each tool prints a short JSON summary on stdout and writes its files into the dossier `workspace/exoplanets/<TIC>/`. Exit codes: 0 ok, 2 invalid input, 3 data not available; the error is one line on stderr. Thresholds live in `missions/exoplanets/mission.yaml`; read them there, never assume them.
 
 ## Tools

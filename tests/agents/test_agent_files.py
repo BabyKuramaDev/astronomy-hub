@@ -96,3 +96,14 @@ def test_skills_are_one_per_context_and_named_uniquely() -> None:
         names.append(front["name"])
     assert len(names) == 10
     assert not (REPO / ".claude" / "skills").exists()
+
+
+def test_skills_open_with_the_exact_commands() -> None:
+    from scripts.list_tools import tools
+
+    for context, rows in tools().items():
+        text = (REPO / "contexts" / context / "skill" / "SKILL.md").read_text()
+        commands = text[text.index("## Commands") : text.index("## Tools")]
+        for name, _help, usage in rows:
+            assert usage in commands, f"{context} skill lacks the exact syntax of {name}"
+            assert f"bin/hub {context} {name} --tic 123456789" in commands, f"no example for {name}"
