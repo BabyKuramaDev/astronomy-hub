@@ -1,4 +1,4 @@
-.PHONY: install test test-network test-platform lint format dossier hello probe
+.PHONY: install test test-network test-platform lint format dossier hello probe eval-set eval-baseline eval-pilot eval-dev
 
 MODE ?= eval
 
@@ -34,3 +34,21 @@ probe:
 
 test-platform:
 	uv run pytest -m platform
+
+# Evals: labels and per-star results live in ~/Code/astronomy-hub-evals (HUB_EVALS_DIR).
+eval-set:
+	uv run python -m evals.build_set --from-snapshot
+
+eval-baseline:
+	uv run python -m evals.baseline
+	uv run python -m evals.scorer baseline
+
+eval-pilot:
+	uv run python -m runtime.eval_agents --pilot --cap-cents 1000
+	uv run python -m evals.scorer agents --compare
+
+# The development set has its own cap, set after the pilot: make eval-dev CAP=<cents>
+eval-dev:
+	@test -n "$(CAP)" || (echo "make eval-dev needs CAP=<cents>, its own spend cap" >&2; exit 2)
+	uv run python -m runtime.eval_agents --split dev --milestone M4-dev --cap-cents $(CAP)
+	uv run python -m evals.scorer agents --compare

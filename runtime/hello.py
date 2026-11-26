@@ -1,6 +1,6 @@
 """make hello: run WASP-18 b on Managed Agents and check the M3 acceptance criterion.
 
-    uv run python -m runtime.hello [--mode eval|explore] [--budget-cents 500] [--cap-cents 2000]
+    uv run python -m runtime.hello [--mode eval|full|explore] [--budget-cents N] [--cap-cents N]
 
 eval: the eval profile (Director, Searcher, Devil's Advocate, Reviewer) ends at decide
 with a valid dossier, final candidate and the period within 1 percent of the catalog.
@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m runtime.hello")
     parser.add_argument("--mode", choices=["eval", "full", "explore"], default="eval")
     parser.add_argument("--budget-cents", type=int, default=500)
-    parser.add_argument("--cap-cents", type=int, default=2000, help="total spend cap for M3")
+    parser.add_argument("--cap-cents", type=int, default=1000, help="total spend cap for M4")
     args = parser.parse_args(argv)
     reference = json.loads(REFERENCE.read_text())
     try:

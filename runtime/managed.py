@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime.audit import as_dicts, audit
-from runtime.ledger import check_cap, record
+from runtime.ledger import MILESTONE, check_cap, record
 from runtime.outputs import extract, validate
 from runtime.ports import Event, Platform, RunMode, RunResult, SessionSpec
 
@@ -53,6 +53,7 @@ class RunConfig:
     extra_summary: dict[str, Any] = field(default_factory=dict)
     message: str | None = None  # replaces the kickoff message (the sandbox probe)
     reserved_cents: int = 0  # budgets of sessions already in flight (parallel runners)
+    milestone: str = MILESTONE  # whose spend cap this session counts against
 
 
 class SessionRecorder:
@@ -80,7 +81,13 @@ class ManagedAgentsRuntime:
 
     def run(self, tic_id: int, mission: str, mode: RunMode, budget_cents: int) -> RunResult:
         cfg = self.config
-        check_cap(cfg.ledger, cfg.cap_cents, budget_cents, reserved_cents=cfg.reserved_cents)
+        check_cap(
+            cfg.ledger,
+            cfg.cap_cents,
+            budget_cents,
+            cfg.milestone,
+            reserved_cents=cfg.reserved_cents,
+        )
         started_wall = datetime.now(UTC)
         run_id = f"{started_wall.strftime('%Y%m%dT%H%M%SZ')}-{tic_id}-{mode}"
         run_dir = cfg.runs_dir / run_id
@@ -120,7 +127,7 @@ class ManagedAgentsRuntime:
         dossier, validated, errors = self._download(session_id, tic_id, run_dir)
         usage = session.get("usage") or {}
         cost = cents(usage)
-        record(cfg.ledger, run_id, session_id, cost, cfg.kind)
+        record(cfg.ledger, run_id, session_id, cost, cfg.kind, cfg.milestone)
         flags = audit(records, tic_id)
         summary = {
             "run_id": run_id,
