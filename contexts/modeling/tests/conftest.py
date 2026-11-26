@@ -16,9 +16,6 @@ DURATION_HOURS = 2.4
 
 
 def batman_lc(seed: int = 3, noise_ppm: float = 400.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    import setuptools  # noqa: F401  (distutils shim for batman)
-
-    # isort: split
     import batman
 
     time = np.arange(1000.0, 1014.0, 2.0 / 1440.0)

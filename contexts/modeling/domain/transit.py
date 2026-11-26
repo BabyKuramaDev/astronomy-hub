@@ -8,12 +8,6 @@ tabulated coefficients enter the fit.
 import math
 from dataclasses import dataclass
 
-# batman 2.5.3 imports distutils, which Python 3.12 removed. Importing setuptools
-# installs its distutils shim explicitly, without relying on distutils-precedence.pth
-# (site.py skips .pth files that macOS marks as hidden).
-import setuptools  # noqa: F401
-
-# isort: split
 import batman
 import numpy as np
 

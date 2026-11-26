@@ -87,8 +87,10 @@ Tracked at the end of `docs/SPEC.md`. Detection records its choice with
 
 ## Environment notes
 
-- batman 2.5.3 imports `distutils`; `contexts/modeling/domain/transit.py` imports
-  `setuptools` first so the shim does not depend on a `.pth` file.
+- batman 2.5.3 imports `distutils`. The pinned `setuptools` dependency provides it
+  through `distutils-precedence.pth`; if batman fails with `No module named
+  'distutils'`, check that the `.pth` files in `.venv` are not flagged hidden
+  (`ls -lO`).
 - Keep the checkout outside iCloud-managed folders such as `~/Documents`: the file
   provider marks dotfiles hidden (Python then skips `.pth` files in `.venv`) and
   creates `"<name> 2"` conflict copies. Check disk space before large downloads.
