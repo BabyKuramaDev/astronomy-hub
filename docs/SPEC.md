@@ -278,7 +278,7 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 | `modeling` | `fit-transit` | Ajusta un modelo de tránsito con jitter. `--mode quick` (por defecto) usa mínimos cuadrados y tarda segundos; `--mode mcmc` usa emcee, informa la convergencia y solo corre si `vetting.json` dice `candidate` | batman, scipy, emcee |
 | `catalog` | `crossmatch` | Busca el TIC en `pscomppars` y en la lista TOI del NASA Exoplanet Archive (TAP) y en las CTOI de ExoFOP; marca qué matches coinciden en período con `signal.json` | urllib |
 | `vetting` | `run-gates` | Corre las diez pruebas de descarte y escribe una corrida de cada una en `vetting/runs.json` | (portado) |
-| `vetting` | `run-gate` | Repite una prueba con otros parámetros de medición (`--duration-scale`, `--window-durations`, dentro de los rangos de `mission.yaml`); los umbrales no se tocan | (portado) |
+| `vetting` | `run-gate` | Repite una prueba con otros parámetros de medición (`--duration-scale`, `--window-durations`, dentro de los rangos de `mission.yaml`); los umbrales no se tocan. Repetir con los mismos parámetros no agrega una corrida | (portado) |
 | `vetting` | `conclude` | Combina las corridas, calcula el veredicto y escribe `vetting.json` con el `--rationale` del agente | (propia) |
 | `review` | `reproduce` | Rehace limpieza (otro detrending) y búsqueda (TLS) desde las tablas por sector, sin leer `signal.json` | wotan, transitleastsquares |
 | `review` | `conclude` | Compara `review/reproduction.json` con `signal.json`, calcula el veredicto y escribe `review.json` con el `--rationale` del agente | (propia) |
@@ -330,7 +330,9 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 - Con datos insuficientes para medir (pocos tránsitos, sin centroides, un solo sector en la prueba 4), la prueba queda `marginal` con nota: nunca falla por falta de datos.
 - En la referencia, el docstring de la prueba 6 dice "< 2,5σ o < 30% del primario", pero el código solo mira la significancia. Se sigue el docstring. El secundario se mide contra una base local alrededor de la fase 0,5, igual que el primario, para que la curva de fase de un Júpiter caliente no lo sesgue.
 - `planet_radius_max_rjup: 2.62` es el mayor `pl_radj` entre los planetas confirmados por tránsito del NASA Exoplanet Archive (Kepler-1979 b, `pscomppars` con `tran_flag=1`, consultado el 26 de noviembre de 2026). La referencia usa 18 R⊕ (unos 1,6 R♃), que descartaría Júpiter calientes inflados confirmados. La fuente y la consulta quedan junto al parámetro en `mission.yaml`.
-- `run-gate` solo cambia parámetros de medición; las pruebas 1, 2 y 7 no tienen y rechazan la repetición.
+- `run-gate` solo cambia parámetros de medición (`duration_scale` y `window_durations`, con rango en `mission.yaml`); las pruebas 1, 2, 3 y 7 no miden fotometría propia (leen `catalog.json`, cuentan tránsitos, leen el SNR guardado o el modelo) y rechazan la repetición.
+- `run-gates` imprime el veredicto que daría `conclude` (`verdict_if_concluded`), para que el agente sepa qué pruebas repetir.
+- Con WASP-18 b, las diez pruebas pasan tanto con los cuatro sectores completos como con el fixture de 2 × 5 días. El secundario sale significativo (28,7σ y 10,7σ) y del 5% del primario: pasa con nota.
 
 **Skills**
 

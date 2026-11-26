@@ -124,6 +124,96 @@ class CatalogConfig(ContractModel):
     retry: RetryConfig
 
 
+GateSeverityName = Literal["hard", "soft", "info"]
+
+
+class MeasurementRange(ContractModel):
+    """A measurement parameter of the gates: its default and the range run-gate accepts."""
+
+    default: PositiveFloat
+    min: PositiveFloat
+    max: PositiveFloat
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if not self.min <= self.default <= self.max:
+            raise ValueError("need min <= default <= max")
+        return self
+
+
+class VettingMeasurement(ContractModel):
+    duration_scale: MeasurementRange  # multiplies the transit duration of signal.json
+    window_durations: MeasurementRange  # outer edge of the local baseline, in durations
+    baseline_inner_durations: PositiveFloat  # inner edge of the local baseline (fixed)
+
+
+class GateBase(ContractModel):
+    severity: GateSeverityName
+
+
+class CoverageGate(GateBase):
+    min_sectors: PositiveInt
+    min_transits: PositiveInt
+
+
+class HoldoutGate(GateBase):
+    min_z: PositiveFloat
+    min_mean_z: PositiveFloat
+    period_window: PositiveFloat  # relative half-width of the period grid around P
+    n_periods: PositiveInt
+
+
+class OddEvenGate(GateBase):
+    max_sigma: PositiveFloat
+
+
+class SecondaryGate(GateBase):
+    min_sigma: PositiveFloat  # significance of the secondary eclipse
+    max_depth_ratio: PositiveFloat  # deeper than this fraction of the primary: not a planet
+
+
+class PlausibilityGate(GateBase):
+    planet_radius_min_rearth: PositiveFloat
+    planet_radius_max_rjup: PositiveFloat
+    duration_ratio: tuple[PositiveFloat, PositiveFloat]  # T14 / T14 circular with b = 0
+
+
+class CentroidGate(GateBase):
+    max_sigma: PositiveFloat
+    max_shift_arcsec: PositiveFloat
+    pixel_scale_arcsec: PositiveFloat
+
+
+class CoherenceGate(GateBase):
+    min_positive_fraction: Annotated[float, Field(gt=0, le=1)]
+    min_jackknife_snr: PositiveFloat
+    min_median_fraction: PositiveFloat
+
+
+class RotationGate(GateBase):
+    max_clean_ratio: PositiveFloat  # sinusoid amplitude / depth, detrended flux
+    max_raw_ratio: PositiveFloat  # sinusoid amplitude / depth, raw PDCSAP flux
+    oot_durations: PositiveFloat  # out of transit: farther than this many durations
+
+
+class VettingGates(ContractModel):
+    catalog: GateBase
+    coverage: CoverageGate
+    snr: GateBase
+    holdout: HoldoutGate
+    odd_even: OddEvenGate = Field(alias="odd-even")
+    secondary: SecondaryGate
+    plausibility: PlausibilityGate
+    centroid: CentroidGate
+    coherence: CoherenceGate
+    rotation: RotationGate
+
+
+class VettingConfig(ContractModel):
+    measurement: VettingMeasurement
+    gates: VettingGates
+
+
 class MissionConfig(ContractModel):
     name: Slug
     description: NonEmptyStr
@@ -132,6 +222,7 @@ class MissionConfig(ContractModel):
     detection: DetectionConfig
     modeling: ModelingConfig
     catalog: CatalogConfig
+    vetting: VettingConfig
 
 
 class MissionError(ValueError):

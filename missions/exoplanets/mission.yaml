@@ -71,3 +71,38 @@ catalog:
   retry:                         # NASA Exoplanet Archive and ExoFOP
     attempts: 4
     backoff_s: 2.0
+
+vetting:
+  # The ten gates are ported from open-exoplanet-hunt (MIT); thresholds are the reference's
+  # unless noted. hard: a fail means false_positive; soft: a fail means inconclusive;
+  # info: reported, never part of the verdict.
+  measurement:                   # what run-gate may change; thresholds never change
+    duration_scale: {default: 1.0, min: 0.5, max: 1.5}
+    window_durations: {default: 4.0, min: 2.5, max: 6.0}
+    baseline_inner_durations: 1.5
+  gates:
+    catalog: {severity: info}
+    coverage: {severity: soft, min_sectors: 2, min_transits: 6}
+    snr: {severity: soft}        # SNR >= detection.snr_min and above search.json inverted_snr_max
+    holdout: {severity: soft, min_z: 2.0, min_mean_z: 3.5, period_window: 0.0008, n_periods: 3000}
+    odd-even: {severity: hard, max_sigma: 2.5}
+    secondary:
+      severity: hard
+      min_sigma: 2.5
+      max_depth_ratio: 0.3       # reference docstring: "< 2.5 sigma or < 30% primary depth"
+    plausibility:
+      severity: hard
+      planet_radius_min_rearth: 0.4
+      # Largest pl_radj among confirmed transiting planets: Kepler-1979 b, 2.617 R_jup.
+      # NASA Exoplanet Archive pscomppars (tran_flag=1), queried 2026-11-26:
+      # select pl_name,pl_radj from pscomppars where tran_flag=1 and pl_radj>1.8
+      # The reference uses 18 R_earth, which would reject confirmed inflated hot Jupiters.
+      planet_radius_max_rjup: 2.62
+      duration_ratio: [0.2, 2.2]
+    centroid: {severity: hard, max_sigma: 3.0, max_shift_arcsec: 2.5, pixel_scale_arcsec: 21.0}
+    coherence:
+      severity: soft
+      min_positive_fraction: 0.7
+      min_jackknife_snr: 6.5
+      min_median_fraction: 0.55
+    rotation: {severity: soft, max_clean_ratio: 0.32, max_raw_ratio: 3.5, oot_durations: 0.75}
