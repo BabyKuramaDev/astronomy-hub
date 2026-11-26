@@ -1,22 +1,29 @@
-"""Command-line entry point of the `modeling` context.
-
-Each use case is exposed as a tool (a subcommand). There are no tools yet, so
-every invocation exits with status 2 (invalid input).
-"""
+"""Tools of the `modeling` context: fit-transit."""
 
 import argparse
 
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m contexts.modeling.cli")
-    parser.add_subparsers(dest="tool", metavar="tool", required=True)
-    return parser
+from contexts.modeling.application.fit_transit import FitOverrides, FitTransit
+from shared.kernel.contexts import Context
+from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
 
 
-def main(argv: list[str] | None = None) -> int:
-    build_parser().parse_args(argv)
-    return 0
+def fit_transit(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
+    overrides = FitOverrides(args.walkers, args.steps, args.burn, args.seed)
+    use_case = FitTransit(ctx.dossier, ctx.meta, ctx.mission.modeling)
+    return ToolResult(summary=use_case.execute(overrides))
 
+
+cli = ToolCli(Context.MODELING)
+fit = cli.tool(
+    "fit-transit",
+    "Fit a transit model (batman + emcee) to the signal in signal.json and write model.json.",
+    fit_transit,
+)
+fit.add_argument("--walkers", type=int, help="override mission.yaml modeling.walkers")
+fit.add_argument("--steps", type=int, help="override mission.yaml modeling.steps")
+fit.add_argument("--burn", type=int, help="override mission.yaml modeling.burn")
+fit.add_argument("--seed", type=int, help="override mission.yaml modeling.seed")
+main = cli.main
 
 if __name__ == "__main__":
     raise SystemExit(main())
