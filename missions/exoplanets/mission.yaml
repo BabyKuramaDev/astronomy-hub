@@ -1,2 +1,48 @@
+# Parameters consumed by the tools. Schema: shared/mission.py (unknown keys are rejected).
+# These are design parameters, not values of any particular star. snr_min comes from
+# the spec (vetting gate 3).
 name: exoplanets
 description: Search for exoplanet transits in public TESS light curves.
+
+acquisition:
+  author: SPOC
+  exptime_s: 120               # only stars with a 2-minute light curve are covered
+  flux_column: PDCSAP_FLUX     # points with NaN or QUALITY != 0 are dropped
+  sector_selection:
+    # longest_consecutive_run: group the available sectors into runs of consecutive
+    # sector numbers; take the longest run (ties: the most recent run); if it is longer
+    # than max_sectors keep its most recent max_sectors. Sectors from other runs are
+    # never added, so the BLS baseline stays compact.
+    rule: longest_consecutive_run
+    max_sectors: 4
+  neighbor_radius_arcsec: 63.0   # three TESS pixels of 21 arcsec
+
+preparation:
+  detrend_method: biweight
+  window_days: 0.75              # about three times the longest searched duration
+  break_tolerance_days: 0.5      # gaps longer than this split the detrending
+  sigma_upper: 4.0               # only upward outliers are clipped, never dips
+
+detection:
+  period_min_days: 0.5
+  period_max_days: 15.0          # also capped so that min_transits fit in the baseline
+  durations_hours: [1.0, 2.0, 3.0, 4.0, 6.0]
+  bin_minutes: 10.0              # binning used only for the period search
+  frequency_factor: 1.0          # astropy BLS autoperiod grid density
+  n_peaks: 5
+  peak_separation: 0.01          # relative period distance between distinct peaks
+  harmonic_max_integer: 4        # ratios n/m with n, m <= 4 are checked
+  harmonic_tolerance: 0.002      # relative tolerance for a harmonic ratio
+  snr_min: 8.0
+  min_transits: 3
+  fold:
+    window_durations: 1.5        # bins cover +/- 1.5 transit durations
+    n_bins: 15
+
+modeling:
+  walkers: 32
+  steps: 3000
+  burn: 1000
+  seed: 42
+  window_durations: 3.0          # only data within +/- 3 durations of a transit is fitted
+  autocorr_factor: 50.0          # converged when post-burn steps > factor * max tau
