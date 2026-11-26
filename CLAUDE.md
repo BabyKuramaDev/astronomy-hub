@@ -8,7 +8,9 @@ behavior, and update it in the same change when a decision changes.
 
 - `make install`: `uv sync` and pre-commit hooks (needs `gitleaks` on PATH)
 - `make test`: pytest without network, including the architecture tests
-- `make test-network`: tests marked `network` (WASP-18 b against MAST); not in CI
+- `make test-network`: tests marked `network` (WASP-18 b against MAST and catalogs); not in CI
+- `make dossier [TIC=<id>] [MODE=eval|explore]`: complete dossier without LLM
+  (`scripts/build_dossier.py`; defaults to WASP-18 b)
 - `uv run python -m tests.fixtures.wasp18.build`: rebuild the WASP-18 b fixtures (network)
 - `make lint`: `ruff check`, `ruff format --check`, `lint-imports`
 - `make format`: format and autofix
@@ -69,6 +71,11 @@ injects a violation into a temporary copy of the repo.
   every tool validates its contract on write and appends a `log.jsonl` entry.
 - Thresholds and parameters come from `missions/<mission>/mission.yaml`, validated
   by `shared/mission.py`. Add new ones there, never as constants in a context.
+- Tools that build on `signal.json` reject inputs computed on another version of it
+  (`Dossier.stale_inputs`, by file hash).
+- Remote calls retry transient errors (`shared/toolkit/retry.py`); then exit 3.
+- Import wotan and transitleastsquares inside functions: numba binds its cache
+  directory when they are imported, and `isolated_caches` sets it first.
 - Downloads go to the dossier; astropy/astroquery caches go to `<dossier>/.cache`,
   matplotlib's font cache and numba's compiled kernels to `<workspace>/.cache`.
   Never write to global caches or into `site-packages`.
@@ -83,8 +90,10 @@ injects a violation into a temporary copy of the repo.
 
 ## Open questions
 
-Tracked at the end of `docs/SPEC.md`. Detection records its choice with
-`select-peak`; still open for M2: how Vetting, Review and the Director record theirs.
+Tracked at the end of `docs/SPEC.md`. Agents record decisions through tools that
+apply a domain rule and take only the agent's justification: `select-peak`,
+`vetting conclude`, `review conclude`, `direction decide`. Open for M3: how the
+Librarian records literature (probably `add-literature`).
 
 ## Environment notes
 

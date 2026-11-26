@@ -8,14 +8,16 @@ The full design is in [`docs/SPEC.md`](docs/SPEC.md) (in Spanish).
 
 ## Status
 
-M1 (signal tools) is done: the six signal tools run end to end on WASP-18 b
-from MAST and recover its catalog period. Verification tools start in M2.
+M2 (verification tools) is done: a script builds WASP-18 b's complete dossier
+without an LLM, through the ten vetting gates and an independent reproduction, and
+in blind (eval) mode it ends in `candidate`. Synthetic eclipsing binaries, glitches,
+rotators and inverted light curves are rejected. Agents start in M3.
 
 | Milestone | Scope |
 | --- | --- |
 | M0 Scaffold | Layout, `shared/contracts`, architecture tests, CI, secret scanning |
-| **M1 Signal tools** | Download, clean, period search, fold, transit fit |
-| M2 Verification tools | Crossmatch, vetting gates, independent reproduction, ephemeris, report |
+| M1 Signal tools | Download, clean, period search, fold, transit fit |
+| **M2 Verification tools** | Crossmatch, vetting gates, independent reproduction, ephemeris, report |
 | M3 Agent skeleton | Six agents on Claude Managed Agents, with a budget per session |
 | M4 Evals | Eval set, runner and scorer in blind mode |
 | M5 Iteration | Prompt and skill tuning against the dev set |
@@ -30,12 +32,13 @@ from MAST and recover its catalog period. Verification tools start in M2.
 ```sh
 make install   # uv sync + pre-commit hooks
 make test          # pytest without network, including the architecture tests
-make test-network  # end-to-end WASP-18 b run against MAST
+make test-network  # end-to-end WASP-18 b run against MAST and the catalogs
+make dossier       # WASP-18 b's complete dossier without an LLM (TIC=<id> MODE=explore|eval)
 make lint          # ruff + import-linter
 make format        # ruff format + autofix
 ```
 
-Run the signal chain for one star (dossier in `workspace/exoplanets/<tic>/`):
+Or run the tools one by one, as the agents will (dossier in `workspace/exoplanets/<tic>/`):
 
 ```sh
 uv run python -m contexts.acquisition.cli fetch-lightcurves --tic <tic>
@@ -44,8 +47,20 @@ uv run python -m contexts.preparation.cli clean --tic <tic>
 uv run python -m contexts.detection.cli search-period --tic <tic>
 uv run python -m contexts.detection.cli fold --tic <tic> --peak p1
 uv run python -m contexts.detection.cli select-peak --tic <tic> --peak p1 --reason "..."
-uv run python -m contexts.modeling.cli fit-transit --tic <tic>
+uv run python -m contexts.modeling.cli fit-transit --tic <tic>             # quick
+uv run python -m contexts.catalog.cli crossmatch --tic <tic>
+uv run python -m contexts.vetting.cli run-gates --tic <tic>
+uv run python -m contexts.vetting.cli run-gate --tic <tic> --gate odd-even --duration-scale 0.8
+uv run python -m contexts.vetting.cli conclude --tic <tic> --rationale "..."
+uv run python -m contexts.modeling.cli fit-transit --tic <tic> --mode mcmc # candidates only
+uv run python -m contexts.review.cli reproduce --tic <tic>
+uv run python -m contexts.review.cli conclude --tic <tic> --rationale "..."
+uv run python -m contexts.direction.cli decide --tic <tic> --mode explore --reason "..."
+uv run python -m contexts.followup.cli ephemeris --tic <tic>
+uv run python -m contexts.reporting.cli render-report --tic <tic>
 ```
+
+Verdicts come from fixed rules in the tools; an agent only gives the rationale.
 
 ## Layout
 
@@ -60,7 +75,8 @@ shared/               kernel value objects, dossier contracts, common prompts
 missions/exoplanets/  mission.yaml
 evals/                eval set, runner and scorer (reads the dossier only)
 runtime/              adapter to Claude Managed Agents
-tests/                shared and architecture tests
+scripts/              build_dossier.py: the whole pipeline without an LLM
+tests/                shared, architecture and end-to-end tests, WASP-18 b fixtures
 ```
 
 A context never imports another one. Contexts talk only through the dossier on
@@ -69,6 +85,7 @@ disk, whose JSON files are validated by the pydantic models in
 
 ## License
 
-[MIT](LICENSE). The vetting gates will be ported from
-[open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (MIT),
-with attribution.
+[MIT](LICENSE). The vetting gates and their synthetic controls are ported from
+[open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (MIT); their
+license notice is in
+[`contexts/vetting/THIRD_PARTY_NOTICE.md`](contexts/vetting/THIRD_PARTY_NOTICE.md).

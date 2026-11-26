@@ -113,6 +113,7 @@ astronomy-hub/
 │   └── exoplanets/     # mission.yaml: objetivos, umbrales, set de evals
 ├── evals/              # build_set, runner, scorer; solo leen el expediente
 ├── runtime/            # adaptador a Managed Agents
+├── scripts/            # build_dossier.py: el expediente completo sin LLM
 ├── tests/              # tests de shared y de arquitectura
 ├── docs/               # este spec
 ├── .claude/skills/     # un SKILL.md por contexto
@@ -244,10 +245,6 @@ Mismo patrón que `select-peak`: cada contexto con criterio tiene una tool que c
 
 Las tres tools (y `fit-transit --mode mcmc`) rechazan (exit 2) archivos calculados sobre otro `signal.json`: comparan el hash de `inputs` con el del archivo actual. El hash es del archivo, no de `data`, así que volver a correr `select-peak` con el mismo pico (cambia `created_at`) también obliga a rehacer lo que sigue: es la opción estricta y coincide con lo que registra `inputs`.
 
-`render-report` necesita `decision.json`, porque el reporte empieza por el veredicto: `decide` corre antes que `render-report` (el prompt del Director de M3 tiene que respetar ese orden). La plantilla (`contexts/reporting/infrastructure/templates/report.md.j2`) pone la fuente de cada número, dice qué archivos faltan y cierra con las limitaciones de la v0.1 y la procedencia de cada archivo.
-
-`decide` lee solo lo que la regla necesita, en su orden: en modo `explore`, `catalog.json`; si no corta, `vetting.json`; si no es `false_positive`, `review.json`. En modo `eval` no lee `catalog.json` aunque exista. Así, archivos de una corrida anterior que la regla no necesita nunca se consultan. `render-report` deja afuera, con una nota, las secciones calculadas sobre otro `signal.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
-
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.
 - Un agente nunca edita a mano el JSON de otro contexto.
 - `log.jsonl` registra comando, versión, duración y hash de salida, para poder reproducir cualquier expediente. Cada línea es un `LogEntry`: `ts`, `context`, `tool`, `argv`, `version`, `duration_s`, `exit_code`, `outputs` (ruta y hash), `summary` (el mismo resumen que va a stdout), `reason` (opcional, por ejemplo el `--reason` de `select-peak`) y `error`.
@@ -309,10 +306,20 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 - `search-period` examina como máximo `examine_factor` × `n_peaks` picos distintos (4 × 5), para que la lista de descartados no crezca sin límite en una estrella sin señal.
 - `peak_separation: 0.02`: con un sector y duraciones de 6 h, los lóbulos laterales del BLS llegan a ~1% del período.
 - `fold` escribe, además de los datos y la figura, `folds/<tag>.json` validado con el mismo resumen que imprime por stdout. Las profundidades se miden tránsito por tránsito: con errores punto a punto, WASP-18 b mostraba una diferencia par/impar espuria de 5,9σ (1,6σ con dispersión entre tránsitos). El error de los pares sale solo de la dispersión entre tránsitos pares, y el de los impares solo de los impares: mezclar los dos grupos inflaría el error de una binaria con eclipses alternados y escondería la diferencia. La medición vive en `shared/kernel/transits.py` y la usan `fold` y la prueba 5.
-- `fit-transit --mode mcmc` corre por defecto 10000 pasos con 2000 de burn-in. En M1, sin jitter, 8000 pasos convergían (τ_max ≈ 103); con el jitter como noveno parámetro τ_max sube a ≈ 142 y 8000 ya no alcanzaban 50 τ. Con 10000 converge (8000 pasos después del burn-in contra 50 τ ≈ 7100) en unos 5 minutos. Arranca desde el óptimo de mínimos cuadrados. Por eso el modo por defecto es `quick` (menos de un segundo, mismos valores dentro de los errores en WASP-18 b) y el MCMC queda para los candidatos que pasaron vetting.
-- Las duraciones que prueba BLS se limitan por período a lo físicamente posible: `T_max(P) = (P/π)·asin(min(1, (1 + rp_rs_max)·R*/a))`, con `R*/a = (3π / (G ρ_min P²))^(1/3)` por la tercera ley de Kepler (G y la densidad solar salen de `astropy.constants`) y `ρ_min = stellar_density_min_solar` de `mission.yaml`, una envolvente para cualquier estrella de la misión. No se usa `star.json`, para que la búsqueda no dependa del orden de las tools ni de los errores del TIC.
-- Los adaptadores de MAST (y los de catálogos) reintentan los errores transitorios (conexión, timeout, HTTP 5xx) con backoff exponencial (`retry.attempts`, `retry.backoff_s`); agotados los intentos, la tool sale con exit 3.
 - batman 2.5.3 importa `distutils`, que Python 3.12 ya no trae; `setuptools` aporta el reemplazo.
+
+**Notas de implementación de M2**
+
+- Las duraciones que prueba BLS se limitan por período a lo físicamente posible: `T_max(P) = (P/π)·asin(min(1, (1 + rp_rs_max)·R*/a))`, con `R*/a = (3π / (G ρ_min P²))^(1/3)` por la tercera ley de Kepler (G y la densidad solar salen de `astropy.constants`) y `ρ_min = stellar_density_min_solar` de `mission.yaml`, una envolvente para cualquier estrella de la misión. No se usa `star.json`, para que la búsqueda no dependa del orden de las tools ni de los errores del TIC.
+- Con el piso de ruido, `search-period` corre BLS dos veces: con los cuatro sectores de WASP-18 b tarda unos 24 segundos.
+- Los adaptadores de MAST (y los de catálogos) reintentan los errores transitorios (conexión, timeout, HTTP 5xx) con backoff exponencial (`retry.attempts`, `retry.backoff_s`); agotados los intentos, la tool sale con exit 3.
+- `fit-transit --mode quick` ajusta por mínimos cuadrados con el jitter reestimado desde los residuos (tres pasadas) y saca los errores de la covarianza, muestreada con semilla fija para propagarlos a a/R*, T14 y el radio. En WASP-18 b el jitter da unos 456 ppm: la dispersión real (752 ppm) supera a los errores de PDCSAP (537 ppm).
+- `fit-transit --mode mcmc` corre por defecto 10000 pasos con 2000 de burn-in. En M1, sin jitter, 8000 pasos convergían (τ_max ≈ 103); con el jitter como noveno parámetro τ_max sube a ≈ 142 y 8000 ya no alcanzaban 50 τ. Con 10000 converge (8000 pasos después del burn-in contra 50 τ ≈ 7100) en unos 5 minutos. Arranca desde el óptimo de mínimos cuadrados. Por eso el modo por defecto es `quick` (menos de un segundo, mismos valores dentro de los errores en WASP-18 b) y el MCMC queda para los candidatos que pasaron vetting.
+- `reproduce` limpia con mediana móvil de 1 día (no biweight de 0,75) y busca con TLS sobre bins de 10 minutos; `detected` exige SDE ≥ `sde_min` (9: falsa alarma de 1,6 × 10⁻⁴ según la tabla del propio paquete). Las advertencias de TLS van al resumen, no a stderr. La profundidad de TLS se mide en el fondo del tránsito y la de BLS es la media de la caja, así que la de TLS sale más alta: en WASP-18 b, 1,16 veces (dentro del 20%). Con los cuatro sectores tarda unos 14 segundos.
+- `render-report` necesita `decision.json`, porque el reporte empieza por el veredicto: `decide` corre antes que `render-report` (el prompt del Director de M3 tiene que respetar ese orden). La plantilla (`contexts/reporting/infrastructure/templates/report.md.j2`) pone la fuente de cada número, dice qué archivos faltan y cierra con las limitaciones de la v0.1 y la procedencia de cada archivo.
+- `decide` lee solo lo que la regla necesita, en su orden: en modo `explore`, `catalog.json`; si no corta, `vetting.json`; si no es `false_positive`, `review.json`. En modo `eval` no lee `catalog.json` aunque exista. Así, archivos de una corrida anterior que la regla no necesita nunca se consultan. `render-report` deja afuera, con una nota, las secciones calculadas sobre otro `signal.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
+- `scripts/build_dossier.py` (`make dossier`) corre cada tool por subprocess, como un agente con bash, y reemplaza cada elección por una regla fija: el primer pico que acepta `select-peak`, sin repeticiones de pruebas, rationales fijos. Si vetting da `false_positive` no corre el MCMC ni `reproduce`; en modo `eval`, `crossmatch` corre después de `decide`. Con WASP-18 b completo y el MCMC por defecto tarda unos 6 minutos, 5 de ellos del MCMC.
+- wotan y transitleastsquares compilan kernels de numba con `cache=True`; se importan dentro de las funciones porque numba fija el directorio de caché al decorar, y `isolated_caches` lo apunta antes a `<workspace>/.cache/numba`. En los tests va a `.pytest_cache/numba`.
 
 **Las diez pruebas de descarte**
 
@@ -336,7 +343,6 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 - `planet_radius_max_rjup: 2.62` es el mayor `pl_radj` entre los planetas confirmados por tránsito del NASA Exoplanet Archive (Kepler-1979 b, `pscomppars` con `tran_flag=1`, consultado el 26 de noviembre de 2026). La referencia usa 18 R⊕ (unos 1,6 R♃), que descartaría Júpiter calientes inflados confirmados. La fuente y la consulta quedan junto al parámetro en `mission.yaml`.
 - `run-gate` solo cambia parámetros de medición (`duration_scale` y `window_durations`, con rango en `mission.yaml`); las pruebas 1, 2, 3 y 7 no miden fotometría propia (leen `catalog.json`, cuentan tránsitos, leen el SNR guardado o el modelo) y rechazan la repetición.
 - `run-gates` imprime el veredicto que daría `conclude` (`verdict_if_concluded`), para que el agente sepa qué pruebas repetir.
-- `reproduce` limpia con mediana móvil de 1 día (no biweight de 0,75) y busca con TLS sobre bins de 10 minutos; `detected` exige SDE ≥ `sde_min` (9: falsa alarma de 1,6 × 10⁻⁴ según la tabla del propio paquete). Las advertencias de TLS van al resumen, no a stderr. La profundidad de TLS se mide en el fondo del tránsito y la de BLS es la media de la caja, así que la de TLS sale más alta: en WASP-18 b, 1,16 veces (dentro del 20%). Con los cuatro sectores tarda unos 14 segundos.
 - Con WASP-18 b, las diez pruebas pasan tanto con los cuatro sectores completos como con el fixture de 2 × 5 días. El secundario sale significativo (28,7σ y 10,7σ) y del 5% del primario: pasa con nota.
 
 **Skills**
