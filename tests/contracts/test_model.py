@@ -47,6 +47,19 @@ def test_invalid_measurement_is_rejected(
         ModelData.model_validate({**model_data, "rp_rs": measurement})
 
 
-def test_stellar_source_is_required(model_data: dict[str, Any]) -> None:
+def test_stellar_source_cannot_be_empty(model_data: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         ModelData.model_validate({**model_data, "stellar_source": ""})
+
+
+def test_planet_radius_may_be_null_together_with_source(model_data: dict[str, Any]) -> None:
+    data = {**model_data, "planet_radius_rearth": None, "stellar_source": None}
+    assert ModelData.model_validate(data).planet_radius_rearth is None
+
+
+@pytest.mark.parametrize("overrides", [{"planet_radius_rearth": None}, {"stellar_source": None}])
+def test_planet_radius_and_source_go_together(
+    model_data: dict[str, Any], overrides: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError, match="both"):
+        ModelData.model_validate({**model_data, **overrides})

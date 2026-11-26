@@ -131,8 +131,11 @@ def test_canonical_json_is_key_order_independent() -> None:
     assert b" " not in canonical_json(a)
 
 
-def test_contract_registry_covers_every_agent_file() -> None:
+def test_contract_registry_covers_every_fixed_dossier_file() -> None:
     assert set(CONTRACTS) == {
+        "lightcurve/manifest.json",
+        "star.json",
+        "search.json",
         "signal.json",
         "model.json",
         "catalog.json",

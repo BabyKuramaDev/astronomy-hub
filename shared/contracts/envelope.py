@@ -2,13 +2,20 @@
 
 import hashlib
 import json
-from datetime import timedelta
-from pathlib import PurePosixPath
 from typing import Any
 
-from pydantic import AwareDatetime, BaseModel, field_validator
+from pydantic import BaseModel
 
-from shared.contracts._base import ContractModel, NonEmptyStr, SemVer, Sha256Digest, Slug, TicId
+from shared.contracts._base import (
+    ContractModel,
+    NonEmptyStr,
+    RelPath,
+    SemVer,
+    Sha256Digest,
+    Slug,
+    TicId,
+    UtcDatetime,
+)
 from shared.kernel.contexts import Context
 
 
@@ -23,25 +30,9 @@ class Envelope[DataT: BaseModel](ContractModel):
     tic_id: TicId
     mission: Slug
     produced_by: ProducedBy
-    created_at: AwareDatetime
-    inputs: dict[str, Sha256Digest]
+    created_at: UtcDatetime
+    inputs: dict[RelPath, Sha256Digest]
     data: DataT
-
-    @field_validator("created_at")
-    @classmethod
-    def _created_at_is_utc(cls, value: AwareDatetime) -> AwareDatetime:
-        if value.utcoffset() != timedelta(0):
-            raise ValueError("created_at must be in UTC")
-        return value
-
-    @field_validator("inputs")
-    @classmethod
-    def _inputs_are_relative_paths(cls, value: dict[str, str]) -> dict[str, str]:
-        for key in value:
-            path = PurePosixPath(key)
-            if not key or "\\" in key or path.is_absolute() or ".." in path.parts:
-                raise ValueError(f"input path must be relative to the dossier: {key!r}")
-        return value
 
 
 def canonical_json(model: BaseModel) -> bytes:
