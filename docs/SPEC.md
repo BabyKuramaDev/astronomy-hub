@@ -578,7 +578,7 @@ Como referencia de dificultad, el pipeline de [ahrazzle/exoplanets](https://gith
 2. Controles sintéticos de las pruebas de descarte: binarias eclipsantes, glitches de un sector y variables por rotación deben ser rechazadas, y tránsitos inyectados deben pasar. Las curvas invertidas, donde cualquier bajón es ruido, sirven para estimar la tasa de falsas alarmas.
 3. Evals de agentes sobre el set, con `make eval-dev` y `make eval-holdout`.
 
-Cada corrida guarda el detalle por estrella en `~/Code/astronomy-hub-evals/results/` y, en este repo, `evals/results/<fecha>_<git_sha>.json` con las métricas agregadas y la versión de cada agente, más una tabla en Markdown para comparar contra la corrida anterior.
+Cada corrida guarda el detalle por estrella en `~/Code/astronomy-hub-evals/results/<set>/` (`baseline.jsonl` y `agents.jsonl`, el índice reanudable con la clave de versiones de cada fila, más el reporte completo `<tipo>.md` y `<tipo>.json`) y, en este repo, `evals/results/<set>-<tipo>.md` con las métricas agregadas, el hash del set, los commits y la versión de cada agente, sin TICs; su historial de git sirve para comparar contra la corrida anterior. El gasto se lleva en `runs/ledger.jsonl` con el hito de cada sesión: el piloto cuenta contra el tope de M4 (10 USD) y `make eval-dev CAP=<centavos>` exige su propio tope, bajo el hito `M4-dev`.
 
 ## Plan por hitos
 
