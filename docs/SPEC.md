@@ -332,6 +332,7 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 - `planet_radius_max_rjup: 2.62` es el mayor `pl_radj` entre los planetas confirmados por tránsito del NASA Exoplanet Archive (Kepler-1979 b, `pscomppars` con `tran_flag=1`, consultado el 26 de noviembre de 2026). La referencia usa 18 R⊕ (unos 1,6 R♃), que descartaría Júpiter calientes inflados confirmados. La fuente y la consulta quedan junto al parámetro en `mission.yaml`.
 - `run-gate` solo cambia parámetros de medición (`duration_scale` y `window_durations`, con rango en `mission.yaml`); las pruebas 1, 2, 3 y 7 no miden fotometría propia (leen `catalog.json`, cuentan tránsitos, leen el SNR guardado o el modelo) y rechazan la repetición.
 - `run-gates` imprime el veredicto que daría `conclude` (`verdict_if_concluded`), para que el agente sepa qué pruebas repetir.
+- `reproduce` limpia con mediana móvil de 1 día (no biweight de 0,75) y busca con TLS sobre bins de 10 minutos; `detected` exige SDE ≥ `sde_min` (9: falsa alarma de 1,6 × 10⁻⁴ según la tabla del propio paquete). Las advertencias de TLS van al resumen, no a stderr. La profundidad de TLS se mide en el fondo del tránsito y la de BLS es la media de la caja, así que la de TLS sale más alta: en WASP-18 b, 1,16 veces (dentro del 20%). Con los cuatro sectores tarda unos 14 segundos.
 - Con WASP-18 b, las diez pruebas pasan tanto con los cuatro sectores completos como con el fixture de 2 × 5 días. El secundario sale significativo (28,7σ y 10,7σ) y del 5% del primario: pasa con nota.
 
 **Skills**

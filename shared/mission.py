@@ -214,6 +214,23 @@ class VettingConfig(ContractModel):
     gates: VettingGates
 
 
+class ReviewConfig(ContractModel):
+    detrend_method: Literal["median"]  # different from preparation's biweight
+    detrend_window_days: PositiveFloat
+    break_tolerance_days: PositiveFloat
+    sigma_upper: PositiveFloat
+    bin_minutes: PositiveFloat
+    period_min_days: PositiveFloat
+    period_max_days: PositiveFloat
+    min_transits: PositiveInt
+    sde_min: PositiveFloat
+    oversampling_factor: PositiveInt
+    duration_grid_step: Annotated[float, Field(gt=1)]
+    period_tolerance: PositiveFloat
+    depth_tolerance: PositiveFloat
+    alias_max_integer: Annotated[int, Field(ge=2)]
+
+
 class MissionConfig(ContractModel):
     name: Slug
     description: NonEmptyStr
@@ -223,6 +240,7 @@ class MissionConfig(ContractModel):
     modeling: ModelingConfig
     catalog: CatalogConfig
     vetting: VettingConfig
+    review: ReviewConfig
 
 
 class MissionError(ValueError):

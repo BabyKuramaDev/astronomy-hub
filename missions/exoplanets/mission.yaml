@@ -106,3 +106,22 @@ vetting:
       min_jackknife_snr: 6.5
       min_median_fraction: 0.55
     rotation: {severity: soft, max_clean_ratio: 0.32, max_raw_ratio: 3.5, oot_durations: 0.75}
+
+review:
+  # reproduce: another cleaning and another search, from the raw per-sector tables.
+  detrend_method: median         # preparation uses biweight
+  detrend_window_days: 1.0       # preparation uses 0.75
+  break_tolerance_days: 0.5
+  sigma_upper: 4.0
+  bin_minutes: 10.0
+  period_min_days: 0.5
+  period_max_days: 15.0          # also capped so that min_transits fit in the baseline
+  min_transits: 3
+  sde_min: 9.0                   # false alarm probability 1.6e-4 by the package's own table
+                                 # (transitleastsquares.stats.FAP(9), TLS 2.3.0)
+  oversampling_factor: 3         # TLS defaults
+  duration_grid_step: 1.1
+  # conclude: comparison with signal.json (spec, Reviewer prompt)
+  period_tolerance: 0.001        # period within 0.1 percent
+  depth_tolerance: 0.2           # depth within 20 percent
+  alias_max_integer: 10          # integer multiples and submultiples count as partial
