@@ -116,8 +116,7 @@ astronomy-hub/
 ├── scripts/            # build_dossier.py: el expediente completo sin LLM
 ├── tests/              # tests de shared y de arquitectura
 ├── docs/               # este spec
-├── .claude/skills/     # un SKILL.md por contexto
-├── environment.yaml    # sandbox: paquetes y hosts permitidos
+├── environment.yaml    # sandbox: hosts permitidos; generado desde uv.lock por scripts/build_environment.py
 ├── claude-lock.json    # IDs generados por ant apply (se commitea)
 ├── Makefile
 └── .env                # fuera de git
@@ -249,7 +248,7 @@ Las tres tools (y `fit-transit --mode mcmc`) rechazan (exit 2) archivos calculad
 - Un agente nunca edita a mano el JSON de otro contexto.
 - `log.jsonl` registra comando, versión, duración y hash de salida, para poder reproducir cualquier expediente. Cada línea es un `LogEntry`: `ts`, `context`, `tool`, `argv`, `version`, `duration_s`, `exit_code`, `outputs` (ruta y hash), `summary` (el mismo resumen que va a stdout), `reason` (opcional, por ejemplo el `--reason` de `select-peak`) y `error`.
 - `produced_by.version` es `0.1.0+g<sha corto>`, con el sufijo `.dirty` si el árbol tiene cambios sin commitear, o `0.1.0` si no hay git. El hash de salida de un JSON se calcula sobre `data` serializado en forma canónica, no sobre el sobre: dos corridas iguales dan el mismo hash aunque cambie `created_at`.
-- Cada sesión arranca con disco vacío. Al terminar, el expediente se copia a `/mnt/session/outputs/` y `runtime/` lo baja.
+- Cada sesión arranca con disco vacío. Al terminar, el Director empaqueta el expediente con `package-dossier` en `/mnt/session/outputs/dossier-<tic>.tar.gz` y `runtime/` lo baja.
 
 ## Tools
 
@@ -347,7 +346,7 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 
 **Skills**
 
-Cada contexto tiene `.claude/skills/<contexto>/SKILL.md` con sus tools, cuándo usar cada una, cómo leer su salida y los umbrales de la misión. Ahí va el conocimiento de dominio que se destile de las referencias.
+Cada contexto tiene `contexts/<contexto>/skill/SKILL.md` con sus tools, cuándo usar cada una, cómo leer su salida y los umbrales de la misión. Ahí va el conocimiento de dominio que se destile de las referencias. Cada skill se sube con `ant apply` y se adjunta por ruta solo a los agentes que usan esas tools. No se usa `.claude/skills/`: montar el repo en una sesión cargaría todas las skills en todos los agentes, y además se cargan en las sesiones locales de Claude Code.
 
 ## Agentes
 
@@ -355,20 +354,21 @@ Seis agentes: el Director coordina y delega en cinco especialistas, con un solo 
 
 | Agente | Contexto | Modelo inicial | Tools propias | Usa también tools de | Web |
 | --- | --- | --- | --- | --- | --- |
-| Director | `direction` | `claude-opus-5-5` | `select-targets`, `registry` | ninguna; delega | No |
+| Director | `direction` | `claude-opus-5-5` | `decide`, `package-dossier` (`select-targets` y `registry` quedan para M4) | ninguna; delega | No |
 | Buscador | `detection` | `claude-sonnet-5-5` | `search-period`, `select-peak`, `fold` | `acquisition`, `preparation`, `modeling` | No |
-| Bibliotecario | `catalog` | `claude-sonnet-5-5` | `crossmatch` | ninguna | Sí |
-| Abogado del diablo | `vetting` | `claude-opus-5-5` | `run-gates`, `run-gate` | `detection` (`fold`) | No |
-| Revisor independiente | `review` | `claude-opus-5-5` | `reproduce` | `acquisition`, `preparation` | No |
+| Bibliotecario | `catalog` | `claude-sonnet-5-5` | `crossmatch`, `add-literature` | ninguna | Sí |
+| Abogado del diablo | `vetting` | `claude-opus-5-5` | `run-gates`, `run-gate`, `conclude` | `detection` (`fold`) | No |
+| Revisor independiente | `review` | `claude-opus-5-5` | `reproduce`, `conclude` | ninguna | No |
 | Redactor | `reporting` | `claude-sonnet-5-5` | `render-report` | `followup` | No |
 
 **Configuración**
 
-- Todos usan el toolset `agent_toolset_20260401`. Búsqueda y fetch web quedan apagados salvo en el Bibliotecario.
-- Solo el Director lleva el bloque `multiagent`, con los cinco especialistas como agentes predefinidos y los agentes inline deshabilitados.
+- Todos usan el toolset `agent_toolset_20260401` con `bash`, `read`, `glob` y `grep`. `write` y `edit` quedan apagados, así que un agente no puede editar a mano un archivo del expediente con esas herramientas. Búsqueda y fetch web quedan apagados salvo en el Bibliotecario, limitados con `allowed_domains`.
+- Política de permisos `always_allow`: las corridas son desatendidas. Vale mientras se cumplan tres condiciones: red `limited`, ningún vault ni token montado en la sesión (el repo es público) y presupuesto por sesión. Si alguna cambia, se revisa antes.
+- Solo el Director lleva el bloque `multiagent`, con los cinco especialistas como agentes predefinidos, los agentes inline deshabilitados y los workflows dinámicos apagados (el pipeline es fijo y el presupuesto es chico).
 - Cada `agent.md` vive en su contexto y se publica con `ant apply`. Cada cambio de prompt genera una versión nueva, que los evals registran.
 
-Definición de partida del Director. El esquema exacto del bloque `multiagent` en YAML hay que verificarlo contra la documentación al implementar.
+Esquema del bloque `multiagent` del Director, verificado contra la documentación de orquestación y de `ant apply` (que cambia cada ruta por `{type: agent, id, version}`):
 
 ```yaml
 ---
@@ -393,6 +393,8 @@ multiagent:
       - ../vetting/agent.md
       - ../review/agent.md
       - ../reporting/agent.md
+  workflows:
+    type: disabled
 ---
 ```
 
@@ -409,7 +411,7 @@ multiagent:
 
 **Prompts iniciales**
 
-Están en inglés porque el repo y las tools lo están. Son el punto de partida que los evals van a corregir.
+Están en inglés porque el repo y las tools lo están. Son el punto de partida que los evals van a corregir. Los de abajo son los de partida del spec; los de M3, actualizados con las tools reales, viven en cada `contexts/<contexto>/agent.md`, y un test verifica que cada uno incluya las reglas comunes al pie de la letra.
 
 Director
 
@@ -460,43 +462,23 @@ El hub corre en Claude Managed Agents, que está en beta; `runtime/` encapsula t
 | --- | --- | --- |
 | Definiciones | Un `agent.md` por agente y un `environment.yaml`, publicados con `ant apply`. Los IDs quedan en `claude-lock.json`, que se commitea | [Quickstart](https://platform.claude.com/docs/es/managed-agents/quickstart) |
 | Entorno | Sandbox en la nube, red `limited` con lista de hosts explícita y paquetes pip con versión fija | [Environments](https://platform.claude.com/docs/es/managed-agents/environments) |
-| Repo | Montado en la sesión como recurso `github_repository`. Un repo público se clona sin token | [GitHub](https://platform.claude.com/docs/es/managed-agents/github) |
-| Skills | Se cargan solas desde `.claude/skills/` del repo montado, una vez al inicio de la sesión | [Skills](https://platform.claude.com/docs/es/managed-agents/skills) |
-| Multiagente | Hasta 20 agentes predefinidos, un nivel de delegación, disco compartido y contexto aislado por agente | [Orquestación](https://platform.claude.com/docs/es/managed-agents/multiagent-orchestration) |
+| Repo | Montado en la sesión como recurso `github_repository`, sin token (el repo es público; `authorization_token` es opcional). `checkout: {type: commit, sha}` fija el commit exacto: `runtime/` se niega a lanzar si el árbol tiene cambios o si `HEAD` no está en `origin/main` | [GitHub](https://platform.claude.com/docs/es/managed-agents/github) |
+| Skills | Una por contexto, subidas con `ant apply` y adjuntas por ruta a cada agente | [Skills](https://platform.claude.com/docs/es/managed-agents/skills) |
+| Multiagente | Hasta 20 agentes predefinidos, un nivel de delegación, disco compartido y contexto aislado por agente. Cada hilo informa su agente y su `usage`; la cifra autoritativa de costo es el `usage` de la sesión | [Orquestación](https://platform.claude.com/docs/es/managed-agents/multiagent-orchestration) |
 | Sesiones | Una por estrella o por lote chico. Cada una tiene su sandbox y no comparte disco con otras | [Environments](https://platform.claude.com/docs/es/managed-agents/environments) |
 | Presupuesto | `budget.max_list_cost.amount` va en centavos y como string: `"500"` son 5 USD. Al llegar, la sesión queda en pausa con `budget_reached` | [Budgets](https://platform.claude.com/docs/es/managed-agents/budgets) |
 | Costo | Tokens a precio normal de la API más 0,08 USD por hora de sesión activa | [Pricing](https://platform.claude.com/docs/en/about-claude/pricing) |
+| Sandbox | Ubuntu 24.04, x86_64, hasta 8 GB de memoria y 10 GB de disco, Python 3.10 a 3.13 con pip, uv y poetry. La documentación no dice cuál es el `python3` por defecto ni el límite de tiempo de un comando bash: se miden con una sesión de prueba | [Cloud sandboxes](https://platform.claude.com/docs/en/managed-agents/cloud-sandboxes-reference) |
+| Outputs | Lo que el agente escribe en `/mnt/session/outputs/` se lista con `files.list(scope_id=<session_id>)` y se baja con `files.download`, unos segundos después del idle. Como la documentación no dice si se conservan subdirectorios, el Director escribe un solo `dossier-<tic>.tar.gz` con `package-dossier` | [Files](https://platform.claude.com/docs/en/managed-agents/files) |
 
-**Entorno de partida**
+**Entorno**
 
-La lista de hosts y las versiones se confirman al implementar: las descargas de TESS pueden salir de más de un dominio.
+`environment.yaml` no se escribe a mano: lo genera `scripts/build_environment.py` desde `uv.lock` (solo las dependencias de runtime, con `==`; `anthropic` va en el grupo `runtime` y no entra al sandbox), y un test verifica que coincidan. Red `limited` con estos hosts:
 
-```yaml
-name: astronomy-hub
-config:
-  type: cloud
-  packages:
-    pip:
-      - numpy
-      - astropy
-      - astroquery
-      - wotan
-      - transitleastsquares
-      - batman-package
-      - emcee
-      - pyarrow
-      - matplotlib
-      - pyyaml
-      - setuptools        # batman importa distutils, que Python 3.12 ya no trae
-      - pydantic
-  networking:
-    type: limited
-    allow_package_managers: true
-    allowed_hosts:
-      - mast.stsci.edu
-      - exoplanetarchive.ipac.caltech.edu
-      - exofop.ipac.caltech.edu
-```
+- `mast.stsci.edu` y `stpubdata.s3.us-east-1.amazonaws.com`: MAST redirige las descargas de curvas de TESS a S3 (medido con una descarga real).
+- `exoplanetarchive.ipac.caltech.edu` y `exofop.ipac.caltech.edu`: `crossmatch`.
+- `arxiv.org` y `ui.adsabs.harvard.edu`: literatura del Bibliotecario.
+- `allow_package_managers: true`, que la plataforma exige para instalar paquetes y que también abre PyPI y GitHub.
 
 **Puerto del runtime**
 
@@ -510,11 +492,12 @@ class AgentRuntime(Protocol):
 
 **Ciclo de una corrida**
 
-1. Crear la sesión con el Director, el entorno, el repo como recurso y el presupuesto.
-2. Abrir el stream de eventos y después enviar el `user.message` con TIC, misión y modo.
-3. Esperar `session.status_idle` y leer el motivo de parada.
-4. Listar y bajar los archivos de `/mnt/session/outputs/`.
-5. Guardar todo en `runs/<run_id>/<tic_id>/` junto con el costo y las versiones de agente.
+0. Antes de lanzar: el árbol sin cambios, `HEAD` en `origin/main` y el gasto acumulado (`runs/ledger.jsonl`) más el presupuesto de la sesión dentro del tope total; si no, no lanza y avisa.
+1. Crear la sesión con el Director (IDs de `claude-lock.json`), el entorno, el repo en el commit de `HEAD` y el presupuesto.
+2. Abrir el stream de eventos y después enviar el `user.message` con TIC, misión y modo. Si el stream se corta, reconectar y deduplicar por id contra la lista de eventos.
+3. Esperar `session.status_idle` con `end_turn` (o `budget_reached`, o la sesión terminada). Una herramienta que pida permiso se niega con un mensaje y queda registrada.
+4. Listar y bajar `/mnt/session/outputs/dossier-<tic>.tar.gz`, extraerlo y validar cada JSON contra los contratos de `shared/contracts/`.
+5. Guardar en `runs/<run_id>/`: el expediente en `<tic_id>/`, todos los eventos de todos los hilos en `events.jsonl` (con hilo y agente), y `summary.json` con costo total y por agente, tokens, segundos activos, duración, motivo de parada, versión de cada agente, commit y la auditoría de comandos del modo eval. El costo de la sesión se suma a `runs/ledger.jsonl`.
 
 **Secretos**
 
@@ -543,7 +526,8 @@ Lo arma `evals/build_set.py` consultando los catálogos; nunca a mano ni de memo
 
 **Modo ciego**
 
-- Con `RunMode` en `eval`, ningún agente tiene web y el Bibliotecario corre al final, sin que su resultado llegue a los demás.
+- Con `RunMode` en `eval`, solo el Bibliotecario tiene web, y corre después de `decide`: su resultado entra en el reporte pero no en la decisión, que ya quedó escrita. Orden en eval: Buscador, Abogado del diablo, Revisor, `decide`, Bibliotecario, Redactor, `package-dossier`.
+- El sandbox es compartido y cualquier agente con `bash` podría consultar un host permitido. `runtime/` audita por lista blanca: en eval, `summary.json` marca todo comando bash que no sea una tool del repo (`python -m contexts.<contexto>.cli ...`) o una inspección de solo lectura (`ls`, `cat`, `head` y similares).
 - El scorer mide sobre lo que escribieron las tools (`signal.json`, `vetting.json`), no sobre el texto de los agentes.
 
 **Métricas por versión**
@@ -611,8 +595,9 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 
 **A confirmar al implementar**
 
-- Esquema exacto del bloque `multiagent` en el frontmatter de `agent.md`.
-- Lista completa de hosts que usa astroquery para bajar datos de TESS.
+- [x] Esquema del bloque `multiagent`: ver la definición del Director en Agentes.
+- [x] Hosts que usa astroquery para bajar datos de TESS: `mast.stsci.edu` y `stpubdata.s3.us-east-1.amazonaws.com` (ver Entorno).
+- [ ] Versión del `python3` por defecto del sandbox y límite de tiempo de un comando bash: se miden con la sesión de prueba de M3. Si el `python3` no es 3.12, las tools corren en un `.venv` creado con `uv sync --frozen` desde `uv.lock`.
 - [x] Nombre exacto de la columna de disposición en la lista TOI y sus valores: `tfopwg_disp` en la tabla `toi` del NASA Exoplanet Archive (TAP), con `APC`, `CP`, `FA`, `FP`, `KP`, `PC` o vacío (consultado el 26 de noviembre de 2026). Las CTOI salen del JSON de ExoFOP (`target.php?id=<tic>&json`, clave `ctois`).
 - [x] Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano: sale de la tabla `pscomppars` del NASA Exoplanet Archive y queda, con la consulta y la fecha, en `tests/fixtures/wasp18/reference.json`.
 
