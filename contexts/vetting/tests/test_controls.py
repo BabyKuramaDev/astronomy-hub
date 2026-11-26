@@ -9,10 +9,11 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from contexts.vetting.domain.gates import GATES, gate_spec
-from contexts.vetting.domain.inputs import GateInputs
+from contexts.vetting.domain.gates import GATES, RJUP_IN_REARTH, gate_spec
+from contexts.vetting.domain.inputs import GateInputs, ModelInfo
 from contexts.vetting.domain.verdict import GateStatus, verdict
 from contexts.vetting.tests.synthetic import CONFIG, PARAMS, PERIOD, T0, make_inputs, with_flux
+from shared.contracts import Measurement
 
 
 def run(inputs: GateInputs) -> dict[str, str]:
@@ -123,3 +124,29 @@ def test_snr_gate_uses_the_noise_floor() -> None:
     assert floor.status == "fail"
     assert "noise floor" in floor.note
     assert fn(replace(base, snr=7.0, inverted_snr_max=3.0), PARAMS, cfg).status == "fail"
+
+
+@pytest.mark.parametrize(
+    ("radius_rjup", "err_rjup", "status"),
+    [
+        (1.2, 0.05, "pass"),
+        (1.8, 0.05, "marginal"),  # bigger than 99% of known planets
+        (2.14, 0.025, "marginal"),  # a confirmed planet like HAT-P-67 b never fails
+        (2.6, 0.2, "marginal"),  # the interval crosses the largest confirmed planet
+        (3.2, 0.1, "fail"),  # even the lower end is above every confirmed planet
+    ],
+)
+def test_plausibility_radius_thresholds(radius_rjup: float, err_rjup: float, status: str) -> None:
+    def m(value: float, err: float) -> Measurement:
+        return Measurement(value=value, err_lower=err, err_upper=err)
+
+    model = ModelInfo(
+        rp_rs=m(0.1, 0.001),
+        planet_radius_rearth=m(radius_rjup * RJUP_IN_REARTH, err_rjup * RJUP_IN_REARTH),
+        duration_hours=m(1.728, 0.01),
+        method="quick",
+    )
+    outcome = gate_spec("plausibility").fn(  # type: ignore[union-attr]
+        replace(make_inputs(), model=model), PARAMS, CONFIG.gates.plausibility
+    )
+    assert outcome.status == status, outcome.note

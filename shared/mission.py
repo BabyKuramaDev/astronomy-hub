@@ -174,7 +174,8 @@ class SecondaryGate(GateBase):
 
 class PlausibilityGate(GateBase):
     planet_radius_min_rearth: PositiveFloat
-    planet_radius_max_rjup: PositiveFloat
+    planet_radius_marginal_rjup: PositiveFloat  # above it: bigger than 99% of known planets
+    planet_radius_max_rjup: PositiveFloat  # lower end above it: fail
     duration_ratio: tuple[PositiveFloat, PositiveFloat]  # T14 / T14 circular with b = 0
 
 

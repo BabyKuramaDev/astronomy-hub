@@ -312,6 +312,7 @@ def gate_plausibility(inputs: GateInputs, params: MeasureParams, cfg: Any) -> Ga
     checks: list[_Check] = []
     metrics: dict[str, float | None] = {}
     max_rearth = cfg.planet_radius_max_rjup * RJUP_IN_REARTH
+    marginal_rearth = cfg.planet_radius_marginal_rjup * RJUP_IN_REARTH
     radius, source = _planet_radius(inputs)
     if radius is not None:
         metrics |= {
@@ -319,6 +320,7 @@ def gate_plausibility(inputs: GateInputs, params: MeasureParams, cfg: Any) -> Ga
             "radius_lower_rearth": _r(radius.lower, 2),
             "radius_upper_rearth": _r(radius.upper, 2),
             "radius_max_rearth": _r(max_rearth, 2),
+            "radius_marginal_rearth": _r(marginal_rearth, 2),
         }
         if radius.lower > max_rearth:
             checks.append(_Check("fail", f"radius {radius.value:.1f} R_earth is too large"))
@@ -326,6 +328,14 @@ def gate_plausibility(inputs: GateInputs, params: MeasureParams, cfg: Any) -> Ga
             checks.append(_Check("fail", f"radius {radius.value:.2f} R_earth is too small"))
         elif radius.upper > max_rearth:
             checks.append(_Check("marginal", f"radius interval crosses {max_rearth:.1f} R_earth"))
+        elif radius.value > marginal_rearth:
+            checks.append(
+                _Check(
+                    "marginal",
+                    f"radius {radius.value:.1f} R_earth is bigger than 99% of the known planets "
+                    f"({marginal_rearth:.1f} R_earth)",
+                )
+            )
         else:
             checks.append(_Check("pass", f"radius {radius.value:.1f} R_earth from {source}"))
 
