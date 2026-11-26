@@ -16,6 +16,9 @@ acquisition:
     rule: longest_consecutive_run
     max_sectors: 4
   neighbor_radius_arcsec: 63.0   # three TESS pixels of 21 arcsec
+  retry:                         # MAST: connection errors, timeouts and HTTP 5xx are retried
+    attempts: 4                  # waits of 2, 4 and 8 s; then exit 3
+    backoff_s: 2.0
 
 preparation:
   detrend_method: biweight

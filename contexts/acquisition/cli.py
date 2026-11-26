@@ -8,17 +8,29 @@ from contexts.acquisition.infrastructure.mast import MastLightcurveArchive, Mast
 from contexts.acquisition.infrastructure.spoc_fits import SpocFitsReader
 from shared.kernel.contexts import Context
 from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
+from shared.toolkit.retry import RetryPolicy
+
+
+def _retry(ctx: ToolContext) -> RetryPolicy:
+    cfg = ctx.mission.acquisition.retry
+    return RetryPolicy(cfg.attempts, cfg.backoff_s)
 
 
 def fetch_lightcurves(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
     use_case = FetchLightcurves(
-        MastLightcurveArchive(), SpocFitsReader(), ctx.dossier, ctx.meta, ctx.mission.acquisition
+        MastLightcurveArchive(_retry(ctx)),
+        SpocFitsReader(),
+        ctx.dossier,
+        ctx.meta,
+        ctx.mission.acquisition,
     )
     return ToolResult(summary=use_case.execute())
 
 
 def fetch_star(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
-    use_case = FetchStar(MastTicCatalog(), ctx.dossier, ctx.meta, ctx.mission.acquisition)
+    use_case = FetchStar(
+        MastTicCatalog(_retry(ctx)), ctx.dossier, ctx.meta, ctx.mission.acquisition
+    )
     return ToolResult(summary=use_case.execute())
 
 

@@ -10,6 +10,7 @@ from typing import Annotated, Literal, Self
 import yaml
 from pydantic import (
     Field,
+    NonNegativeFloat,
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
@@ -20,6 +21,13 @@ from pydantic import (
 from shared.contracts._base import ContractModel, NonEmptyStr, Slug
 
 MISSIONS_DIR = Path(__file__).resolve().parent.parent / "missions"
+
+
+class RetryConfig(ContractModel):
+    """Transient errors of a remote service are retried with exponential backoff."""
+
+    attempts: PositiveInt
+    backoff_s: NonNegativeFloat
 
 
 class SectorSelection(ContractModel):
@@ -33,6 +41,7 @@ class AcquisitionConfig(ContractModel):
     flux_column: Literal["PDCSAP_FLUX"]
     sector_selection: SectorSelection
     neighbor_radius_arcsec: PositiveFloat
+    retry: RetryConfig
 
 
 class PreparationConfig(ContractModel):

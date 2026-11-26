@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from shared.toolkit.errors import DataNotAvailableError
+from shared.toolkit.retry import RetryPolicy
 
 LC_SUFFIX = "_lc.fits"
 # Single-sector SPOC light curve observations, for example
@@ -50,16 +51,23 @@ def _wrap_remote(action: str, exc: Exception) -> DataNotAvailableError:
 
 
 class MastLightcurveArchive:
+    """Every remote call is retried on transient errors (see shared.toolkit.retry)."""
+
+    def __init__(self, retry: RetryPolicy | None = None) -> None:
+        self.retry = retry or RetryPolicy()
+
     def _observations(self, tic_id: int, author: str, exptime_s: float) -> Any:
         from astroquery.mast import Observations
 
         try:
-            return Observations.query_criteria(
-                target_name=str(tic_id),
-                obs_collection="TESS",
-                dataproduct_type="timeseries",
-                provenance_name=author,
-                t_exptime=[exptime_s - 1, exptime_s + 1],
+            return self.retry.call(
+                lambda: Observations.query_criteria(
+                    target_name=str(tic_id),
+                    obs_collection="TESS",
+                    dataproduct_type="timeseries",
+                    provenance_name=author,
+                    t_exptime=[exptime_s - 1, exptime_s + 1],
+                )
             )
         except Exception as exc:
             raise _wrap_remote("observation query", exc) from exc
@@ -83,7 +91,7 @@ class MastLightcurveArchive:
             return {}
         try:
             mask = np.array([int(obsid) in wanted for obsid in obs["obsid"]])
-            products = Observations.get_product_list(obs[mask])
+            products = self.retry.call(lambda: Observations.get_product_list(obs[mask]))
         except Exception as exc:
             raise _wrap_remote("product list", exc) from exc
         dest.mkdir(parents=True, exist_ok=True)
@@ -97,13 +105,16 @@ class MastLightcurveArchive:
                 continue
             target = dest / name
             if not target.exists():
+                selection = products[products["productFilename"] == name]
                 try:
-                    Observations.download_products(
-                        products[products["productFilename"] == name],
-                        download_dir=str(dest),
-                        flat=True,
-                        cache=True,
-                        verbose=False,
+                    self.retry.call(
+                        lambda selection=selection: Observations.download_products(
+                            selection,
+                            download_dir=str(dest),
+                            flat=True,
+                            cache=True,
+                            verbose=False,
+                        )
                     )
                 except Exception as exc:
                     raise _wrap_remote(f"download of {name}", exc) from exc
@@ -114,11 +125,14 @@ class MastLightcurveArchive:
 
 
 class MastTicCatalog:
+    def __init__(self, retry: RetryPolicy | None = None) -> None:
+        self.retry = retry or RetryPolicy()
+
     def target(self, tic_id: int) -> Mapping[str, Any]:
         from astroquery.mast import Catalogs
 
         try:
-            rows = Catalogs.query_criteria(catalog="Tic", ID=tic_id)
+            rows = self.retry.call(lambda: Catalogs.query_criteria(catalog="Tic", ID=tic_id))
         except Exception as exc:
             raise _wrap_remote("TIC query", exc) from exc
         if len(rows) != 1:
@@ -133,10 +147,12 @@ class MastTicCatalog:
         from astroquery.mast import Catalogs
 
         try:
-            rows = Catalogs.query_region(
-                SkyCoord(ra_deg, dec_deg, unit="deg"),
-                radius=radius_arcsec * u.arcsec,
-                catalog="Tic",
+            rows = self.retry.call(
+                lambda: Catalogs.query_region(
+                    SkyCoord(ra_deg, dec_deg, unit="deg"),
+                    radius=radius_arcsec * u.arcsec,
+                    catalog="Tic",
+                )
             )
         except Exception as exc:
             raise _wrap_remote("TIC cone search", exc) from exc
