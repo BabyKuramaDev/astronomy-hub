@@ -24,7 +24,7 @@ def meta() -> ToolMeta:
 
 
 def decision() -> DecisionData:
-    return DecisionData(final="no_signal", reason="No peak.", next_step="None.")
+    return DecisionData(mode="eval", final="no_signal", reason="No peak.", next_step="None.")
 
 
 def test_dossier_location(tmp_path: Path) -> None:

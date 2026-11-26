@@ -1,15 +1,47 @@
-"""vetting.json, written by `vetting`."""
+"""vetting/runs.json and vetting.json, written by `vetting`."""
 
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, PositiveInt, model_validator
 
 from shared.contracts._base import ContractModel, NonEmptyStr, Slug
 
 GateStatus = Literal["pass", "fail", "marginal"]
-# Which gates are hard is decided in M2.
-GateSeverity = Literal["hard", "soft"]
+# hard: a failure means false_positive; soft: a failure means inconclusive;
+# info: reported, never part of the verdict.
+GateSeverity = Literal["hard", "soft", "info"]
 VettingVerdict = Literal["candidate", "false_positive", "inconclusive"]
+
+
+class GateRun(ContractModel):
+    """One run of one gate (run-gates or run-gate), with the parameters it used."""
+
+    gate: Slug
+    run: PositiveInt
+    params: dict[Slug, float]
+    status: GateStatus
+    severity: GateSeverity
+    value: float | None
+    threshold: float | None
+    note: str
+    metrics: dict[str, float | None]
+
+
+class GateRunsData(ContractModel):
+    runs: Annotated[list[GateRun], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def _runs_are_numbered(self) -> Self:
+        seen: dict[str, list[int]] = {}
+        for run in self.runs:
+            seen.setdefault(run.gate, []).append(run.run)
+        for gate, numbers in seen.items():
+            if numbers != list(range(1, len(numbers) + 1)):
+                raise ValueError(f"runs of gate {gate!r} must be numbered 1, 2, ... in order")
+        return self
+
+    def of(self, gate: str) -> list[GateRun]:
+        return [r for r in self.runs if r.gate == gate]
 
 
 class Gate(ContractModel):
@@ -19,6 +51,7 @@ class Gate(ContractModel):
     value: float | None
     threshold: float | None
     note: str
+    n_runs: PositiveInt  # runs combined: all pass -> pass, all fail -> fail, else marginal
 
 
 class VettingData(ContractModel):

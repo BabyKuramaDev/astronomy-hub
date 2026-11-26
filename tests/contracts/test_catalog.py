@@ -16,6 +16,7 @@ def catalog_data() -> dict[str, Any]:
                 "id": "WASP-18 b",
                 "period_days": 0.9414,
                 "disposition": "CONFIRMED",
+                "period_match": True,
                 "url": "https://exoplanetarchive.ipac.caltech.edu/overview/WASP-18b",
             }
         ],
@@ -26,6 +27,7 @@ def catalog_data() -> dict[str, Any]:
                 "note": "Period and radius.",
             }
         ],
+        "notes": [],
     }
 
 
@@ -34,7 +36,9 @@ def test_valid_catalog(catalog_data: dict[str, Any]) -> None:
 
 
 def test_unknown_with_no_matches_is_valid() -> None:
-    data = CatalogData.model_validate({"status": "unknown", "matches": [], "literature": []})
+    data = CatalogData.model_validate(
+        {"status": "unknown", "matches": [], "literature": [], "notes": []}
+    )
     assert data.matches == []
 
 
@@ -44,7 +48,12 @@ def test_disposition_is_free_text(catalog_data: dict[str, Any]) -> None:
 
 
 def test_match_period_and_disposition_may_be_null(catalog_data: dict[str, Any]) -> None:
-    match = {**catalog_data["matches"][0], "period_days": None, "disposition": None}
+    match = {
+        **catalog_data["matches"][0],
+        "period_days": None,
+        "disposition": None,
+        "period_match": None,
+    }
     assert CatalogData.model_validate({**catalog_data, "matches": [match]})
 
 

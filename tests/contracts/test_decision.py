@@ -8,15 +8,15 @@ from shared.contracts import DecisionData
     "final", ["no_signal", "known", "false_positive", "candidate", "inconclusive"]
 )
 def test_final_values(final: str) -> None:
-    data = DecisionData(final=final, reason="Because.", next_step="Follow up.")  # type: ignore[arg-type]
+    data = DecisionData(mode="eval", final=final, reason="Because.", next_step="Follow up.")  # type: ignore[arg-type]
     assert data.final == final
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("final", "planet"), ("reason", ""), ("next_step", "")],
+    [("final", "planet"), ("reason", ""), ("next_step", ""), ("mode", "blind")],
 )
 def test_invalid_decision_is_rejected(field: str, value: str) -> None:
-    data = {"final": "candidate", "reason": "Because.", "next_step": "Follow up."}
+    data = {"mode": "explore", "final": "candidate", "reason": "Because.", "next_step": "Go."}
     with pytest.raises(ValidationError):
         DecisionData.model_validate({**data, field: value})

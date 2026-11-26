@@ -11,7 +11,7 @@ from shared.toolkit.errors import DataNotAvailableError, InvalidInputError
 
 
 def ok(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
-    data = DecisionData(final="no_signal", reason="r", next_step="n")
+    data = DecisionData(mode="eval", final="no_signal", reason="r", next_step="n")
     ctx.dossier.write_envelope("decision.json", ctx.meta.envelope(data, ctx.dossier.reads))
     return ToolResult(summary={"final": "no_signal", "tic": ctx.tic_id}, reason=args.reason)
 

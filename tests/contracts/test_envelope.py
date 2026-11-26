@@ -89,7 +89,12 @@ def test_envelope_is_immutable(no_signal: dict[str, Any]) -> None:
 
 
 def test_data_must_match_the_file_contract(no_signal: dict[str, Any]) -> None:
-    decision = {"final": "no_signal", "reason": "No peak above threshold.", "next_step": "None."}
+    decision = {
+        "mode": "eval",
+        "final": "no_signal",
+        "reason": "No peak above threshold.",
+        "next_step": "None.",
+    }
     with pytest.raises(ValidationError):
         SignalFile.model_validate(envelope(decision))
     assert Envelope[DecisionData].model_validate(envelope(decision)).data.final == "no_signal"
@@ -139,7 +144,10 @@ def test_contract_registry_covers_every_fixed_dossier_file() -> None:
         "signal.json",
         "model.json",
         "catalog.json",
+        "vetting/runs.json",
         "vetting.json",
+        "review/reproduction.json",
         "review.json",
+        "ephemeris.json",
         "decision.json",
     }

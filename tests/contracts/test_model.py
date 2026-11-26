@@ -17,8 +17,41 @@ def model_data() -> dict[str, Any]:
         "planet_radius_rearth": m(13.2, 0.4, 0.5),
         "impact_parameter": m(0.36, 0.05, 0.04),
         "a_rs": m(3.48, 0.03, 0.03),
+        "period_days": m(0.941452, 1e-6, 1e-6),
+        "epoch_btjd": m(3000.5, 1e-4, 1e-4),
+        "duration_hours": m(2.19, 0.02, 0.02),
+        "jitter_ppm": m(120.0, 10.0, 10.0),
+        "method": "quick",
         "stellar_source": "TIC v8.2",
+        "convergence": None,
     }
+
+
+CONVERGENCE = {
+    "walkers": 32,
+    "steps": 8000,
+    "burn": 2000,
+    "seed": 42,
+    "tau_max": 103.0,
+    "n_post_burn": 6000,
+    "autocorr_factor": 50.0,
+    "converged": True,
+    "acceptance_mean": 0.35,
+    "acceptance_min": 0.2,
+}
+
+
+def test_mcmc_needs_convergence(model_data: dict[str, Any]) -> None:
+    ModelData.model_validate({**model_data, "method": "mcmc", "convergence": CONVERGENCE})
+    with pytest.raises(ValidationError, match="convergence"):
+        ModelData.model_validate({**model_data, "method": "mcmc"})
+    with pytest.raises(ValidationError, match="convergence"):
+        ModelData.model_validate({**model_data, "convergence": CONVERGENCE})
+
+
+def test_measurement_bounds() -> None:
+    m_ = Measurement(value=2.0, err_lower=0.5, err_upper=0.25)
+    assert (m_.lower, m_.upper) == (1.5, 2.25)
 
 
 def test_valid_model(model_data: dict[str, Any]) -> None:

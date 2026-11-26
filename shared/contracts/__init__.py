@@ -5,8 +5,9 @@ Tools validate when writing and evals validate when reading.
 
 from shared.contracts._base import SCHEMA_VERSION, ContractModel
 from shared.contracts.catalog import CatalogData, CatalogMatch, CatalogStatus, LiteratureRef
-from shared.contracts.decision import DecisionData, FinalDecision
+from shared.contracts.decision import DecisionData, FinalDecision, RunMode
 from shared.contracts.envelope import Envelope, ProducedBy, canonical_json, data_sha256
+from shared.contracts.ephemeris import EphemerisData, PredictedTransit
 from shared.contracts.fold import FoldBin, FoldData, OddEven
 from shared.contracts.lightcurve import (
     CLEAN_TABLE_COLUMNS,
@@ -15,12 +16,20 @@ from shared.contracts.lightcurve import (
     SectorLightcurve,
 )
 from shared.contracts.log import LogEntry
-from shared.contracts.model import Measurement, ModelData
-from shared.contracts.review import ReviewData, ReviewVerdict
+from shared.contracts.model import FitMethod, McmcConvergence, Measurement, ModelData
+from shared.contracts.review import ReproductionData, ReviewData, ReviewVerdict
 from shared.contracts.search import DiscardedPeak, PeriodSearchData, SearchPeak
 from shared.contracts.signal import Peak, SignalData
 from shared.contracts.star import Neighbor, StarData
-from shared.contracts.vetting import Gate, GateSeverity, GateStatus, VettingData, VettingVerdict
+from shared.contracts.vetting import (
+    Gate,
+    GateRun,
+    GateRunsData,
+    GateSeverity,
+    GateStatus,
+    VettingData,
+    VettingVerdict,
+)
 
 SignalFile = Envelope[SignalData]
 ModelFile = Envelope[ModelData]
@@ -32,6 +41,9 @@ StarFile = Envelope[StarData]
 LightcurveSetFile = Envelope[LightcurveSetData]
 SearchFile = Envelope[PeriodSearchData]
 FoldFile = Envelope[FoldData]  # folds/<tag>.json
+GateRunsFile = Envelope[GateRunsData]
+ReproductionFile = Envelope[ReproductionData]
+EphemerisFile = Envelope[EphemerisData]
 
 # Dossier file name -> contract that validates it.
 CONTRACTS: dict[str, type[Envelope]] = {
@@ -41,8 +53,11 @@ CONTRACTS: dict[str, type[Envelope]] = {
     "signal.json": SignalFile,
     "model.json": ModelFile,
     "catalog.json": CatalogFile,
+    "vetting/runs.json": GateRunsFile,
     "vetting.json": VettingFile,
+    "review/reproduction.json": ReproductionFile,
     "review.json": ReviewFile,
+    "ephemeris.json": EphemerisFile,
     "decision.json": DecisionFile,
 }
 
@@ -60,17 +75,24 @@ __all__ = [
     "DecisionFile",
     "DiscardedPeak",
     "Envelope",
+    "EphemerisData",
+    "EphemerisFile",
     "FinalDecision",
+    "FitMethod",
     "FoldBin",
     "FoldData",
     "FoldFile",
     "Gate",
+    "GateRun",
+    "GateRunsData",
+    "GateRunsFile",
     "GateSeverity",
     "GateStatus",
     "LightcurveSetData",
     "LightcurveSetFile",
     "LiteratureRef",
     "LogEntry",
+    "McmcConvergence",
     "Measurement",
     "ModelData",
     "ModelFile",
@@ -78,10 +100,14 @@ __all__ = [
     "OddEven",
     "Peak",
     "PeriodSearchData",
+    "PredictedTransit",
     "ProducedBy",
+    "ReproductionData",
+    "ReproductionFile",
     "ReviewData",
     "ReviewFile",
     "ReviewVerdict",
+    "RunMode",
     "SearchFile",
     "SearchPeak",
     "SectorLightcurve",
