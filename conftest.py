@@ -14,8 +14,8 @@ LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
 DEAD_PROXY = "http://127.0.0.1:9"
 
 
-class NetworkAccessError(RuntimeError):
-    pass
+class NetworkAccessError(OSError):
+    """An OSError, so socket.create_connection closes the socket like on a real failure."""
 
 
 @pytest.fixture(autouse=True)
