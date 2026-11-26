@@ -110,3 +110,18 @@ def split(chosen: dict[str, list[Star]]) -> list[dict]:
         for k, star in enumerate(stars):
             rows.append({**asdict(star), "split": "dev" if k < dev else "holdout"})
     return sorted(rows, key=lambda r: (r["group"], r["tic_id"]))
+
+
+PILOT = {"planet_deep": 1, "planet_small": 1, "false_positive": 2, "no_signal": 1}
+
+
+def pilot(stars: Sequence[dict]) -> list[dict]:
+    """The pilot: the first development stars of each group, by TIC (deterministic)."""
+    out = []
+    for group, k in PILOT.items():
+        dev = sorted(
+            (s for s in stars if s["group"] == group and s["split"] == "dev"),
+            key=lambda s: s["tic_id"],
+        )
+        out += dev[:k]
+    return out

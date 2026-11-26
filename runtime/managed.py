@@ -52,6 +52,7 @@ class RunConfig:
     clock: Callable[[], float] = time.monotonic
     extra_summary: dict[str, Any] = field(default_factory=dict)
     message: str | None = None  # replaces the kickoff message (the sandbox probe)
+    reserved_cents: int = 0  # budgets of sessions already in flight (parallel runners)
 
 
 class SessionRecorder:
@@ -79,7 +80,7 @@ class ManagedAgentsRuntime:
 
     def run(self, tic_id: int, mission: str, mode: RunMode, budget_cents: int) -> RunResult:
         cfg = self.config
-        check_cap(cfg.ledger, cfg.cap_cents, budget_cents)
+        check_cap(cfg.ledger, cfg.cap_cents, budget_cents, reserved_cents=cfg.reserved_cents)
         started_wall = datetime.now(UTC)
         run_id = f"{started_wall.strftime('%Y%m%dT%H%M%SZ')}-{tic_id}-{mode}"
         run_dir = cfg.runs_dir / run_id
