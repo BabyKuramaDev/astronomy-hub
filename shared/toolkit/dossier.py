@@ -69,6 +69,7 @@ class Dossier:
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(payload)
+            os.chmod(tmp, 0o644)
             os.replace(tmp, path)
         except BaseException:
             Path(tmp).unlink(missing_ok=True)

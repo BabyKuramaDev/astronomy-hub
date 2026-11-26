@@ -5,6 +5,7 @@ astropy never write to global caches.
 """
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,20 @@ import numpy as np
 from shared.toolkit.errors import DataNotAvailableError
 
 LC_SUFFIX = "_lc.fits"
+# Single-sector SPOC light curve observations, for example
+# tess2018234235059-s0002-0000000100100827-0121-s. Multi-sector Data Validation
+# observations (tess2018206190142-s0001-s0036-...) carry the last sector as their
+# sequence_number but have no light curve, so they are excluded.
+SINGLE_SECTOR_OBS_ID = re.compile(r"^tess\d{13}-s(?P<sector>\d{4})-\d{16}-\d{4}-s$")
+
+
+def single_sector_rows(obs: Any) -> list[Any]:
+    rows = []
+    for row in obs:
+        match = SINGLE_SECTOR_OBS_ID.match(str(row["obs_id"]))
+        if match and int(match["sector"]) == int(row["sequence_number"]):
+            rows.append(row)
+    return rows
 
 
 def _row_to_dict(row: Any) -> dict[str, Any]:
@@ -51,7 +66,7 @@ class MastLightcurveArchive:
 
     def available_sectors(self, tic_id: int, author: str, exptime_s: float) -> list[int]:
         obs = self._observations(tic_id, author, exptime_s)
-        return sorted({int(s) for s in obs["sequence_number"]}) if len(obs) else []
+        return sorted({int(row["sequence_number"]) for row in single_sector_rows(obs)})
 
     def download(
         self, tic_id: int, sectors: Sequence[int], author: str, exptime_s: float, dest: Path
@@ -59,12 +74,16 @@ class MastLightcurveArchive:
         from astroquery.mast import Observations
 
         obs = self._observations(tic_id, author, exptime_s)
-        wanted = {int(row["obsid"]): int(row["sequence_number"]) for row in obs}
-        wanted = {obsid: s for obsid, s in wanted.items() if s in set(sectors)}
+        wanted = {
+            int(row["obsid"]): int(row["sequence_number"])
+            for row in single_sector_rows(obs)
+            if int(row["sequence_number"]) in set(sectors)
+        }
         if not wanted:
             return {}
         try:
-            products = Observations.get_product_list(obs[np.isin(obs["obsid"], list(wanted))])
+            mask = np.array([int(obsid) in wanted for obsid in obs["obsid"]])
+            products = Observations.get_product_list(obs[mask])
         except Exception as exc:
             raise _wrap_remote("product list", exc) from exc
         dest.mkdir(parents=True, exist_ok=True)
