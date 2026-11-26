@@ -263,6 +263,22 @@ def test_spend_cap_blocks_a_new_session(tmp_path: Path) -> None:
         ("echo x >> notes.txt", False),
         ("cat signal.json | tee copy.json", False),
         ("rm -rf workspace", False),
+        # quotes, loops and harmless shell, as the agents wrote them in the first hello run
+        (
+            "bin/hub detection select-peak --tic 1 --peak p1 --reason 'SNR 1251 > floor 39; ok'",
+            True,
+        ),
+        ("cd /x && jq 'del(.. | arrays? | select(length>20))' signal.json", True),
+        ("cd /x && bin/hub direction package-dossier --tic 1; echo EXIT=$?", True),
+        ("cd /x; for f in a.json b.json; do echo $f; head -c 400 $f; done", True),
+        (
+            "bin/hub review reproduce --tic 1 2>&1 | tail -5; grep -n 'valid\\|context' bin/hub",
+            True,
+        ),
+        ("for f in a b; do rm $f; done", False),
+        ("cat $(ls *.json)", False),
+        ("bin/hub vetting run-gates --tic 1 > gates.txt", False),
+        ("python3 - <<'EOF'", False),
     ],
 )
 def test_allowlist(command: str, allowed: bool) -> None:
