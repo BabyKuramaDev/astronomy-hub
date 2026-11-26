@@ -5,7 +5,7 @@
   "period_reference_html": "<a refstr=CORT_EACUTE_S_ZULETA_ET_AL__2020 href=https://ui.adsabs.harvard.edu/abs/2020A&A...636A..98C/abstract target=ref>Cort&eacute;s-Zuleta et al. 2020</a>",
   "planet": "WASP-18 b",
   "query": "select pl_name,tic_id,pl_orbper,pl_orbpererr1,pl_orbpererr2,pl_orbper_reflink from pscomppars where pl_name='WASP-18 b'",
-  "retrieved_at": "2026-11-26T18:47:04Z",
+  "retrieved_at": "2026-11-26T20:30:58Z",
   "source": "NASA Exoplanet Archive, Planetary Systems Composite Parameters (pscomppars), TAP",
   "tic_id": 100100827,
   "url": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+pl_name%2Ctic_id%2Cpl_orbper%2Cpl_orbpererr1%2Cpl_orbpererr2%2Cpl_orbper_reflink+from+pscomppars+where+pl_name%3D%27WASP-18+b%27&format=json"

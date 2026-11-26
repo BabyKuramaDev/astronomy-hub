@@ -8,6 +8,8 @@ Writes into tests/fixtures/wasp18/:
 - tic_target.json, tic_neighbors.json: the TIC rows that fetch-star reads.
 - s<sector>_trimmed.fits: SPOC 2-minute light curves of the first two sectors chosen
   by the mission rule, trimmed to a few days and to the columns the hub reads.
+- catalogs.json: the raw answers crossmatch reads (pscomppars and toi rows from the
+  NASA Exoplanet Archive TAP, and the ctois and planet_parameters of the ExoFOP target).
 - PROVENANCE.md: where every file comes from and how it was trimmed.
 
 Nothing astronomical is typed by hand: the TIC id and the period come from the query.
@@ -27,6 +29,13 @@ from astropy.io import fits
 
 from contexts.acquisition.domain.sectors import select_sectors
 from contexts.acquisition.infrastructure.mast import MastLightcurveArchive, MastTicCatalog
+from contexts.catalog.infrastructure.archive import (
+    exofop_url,
+    http_json,
+    pscomppars_query,
+    tap_url,
+    toi_query,
+)
 from shared.mission import load_mission
 from shared.toolkit.caches import isolated_caches
 
@@ -37,9 +46,9 @@ TAP_QUERY = (
     "select pl_name,tic_id,pl_orbper,pl_orbpererr1,pl_orbpererr2,pl_orbper_reflink "
     f"from pscomppars where pl_name='{PLANET}'"
 )
-KEEP_DAYS = 3.0  # length of the window kept from each sector
+KEEP_DAYS = 5.0  # length of the window kept from each sector (>= 6 transits in total)
 N_SECTORS = 2
-COLUMNS = ("TIME", "PDCSAP_FLUX", "PDCSAP_FLUX_ERR", "QUALITY")
+COLUMNS = ("TIME", "PDCSAP_FLUX", "PDCSAP_FLUX_ERR", "QUALITY", "MOM_CENTR1", "MOM_CENTR2")
 TIC_COLUMNS = (
     "ID", "version", "ra", "dec", "Tmag", "contratio", "dstArcSec",
     "Teff", "e_Teff", "eneg_Teff", "epos_Teff",
@@ -84,6 +93,20 @@ def query_reference() -> dict[str, Any]:
         "query": TAP_QUERY,
         "url": url,
         "retrieved_at": now(),
+    }
+
+
+def query_catalogs(tic_id: int) -> dict[str, Any]:
+    """The answers crossmatch reads, as the services return them."""
+    tap = {"pscomppars": tap_url(pscomppars_query(tic_id)), "toi": tap_url(toi_query(tic_id))}
+    target = http_json(exofop_url(tic_id))
+    return {
+        "retrieved_at": now(),
+        **{name: {"url": url, "rows": http_json(url)} for name, url in tap.items()},
+        "exofop": {
+            "url": exofop_url(tic_id),
+            "target": {k: target.get(k, []) for k in ("ctois", "planet_parameters")},
+        },
     }
 
 
@@ -132,6 +155,8 @@ def main() -> None:
     reference = query_reference()
     tic_id = reference["tic_id"]
     write_json("reference.json", reference)
+    catalogs = query_catalogs(tic_id)
+    write_json("catalogs.json", catalogs)
     mission = load_mission("exoplanets").acquisition
 
     with tempfile.TemporaryDirectory() as tmp, isolated_caches(Path(tmp) / ".cache"):
@@ -171,6 +196,9 @@ def main() -> None:
         f"  Query: `{reference['query']}`.",
         f"- `tic_target.json`, `tic_neighbors.json`: MAST TIC (astroquery `Catalogs`), "
         f"retrieved {retrieved}; cone of {mission.neighbor_radius_arcsec} arcsec.",
+        f"- `catalogs.json`: NASA Exoplanet Archive TAP (`pscomppars`, `toi`) and ExoFOP "
+        f"(`ctois`, `planet_parameters` of the target), retrieved {catalogs['retrieved_at']}; "
+        "the URLs are in the file.",
         f"- SPOC 2-minute light curves from MAST, first {N_SECTORS} sectors chosen by the "
         f"mission rule from {available}. Each keeps the {KEEP_DAYS:g}-day window with the "
         f"most valid cadences (finite PDCSAP_FLUX, QUALITY == 0) and only "
