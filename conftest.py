@@ -1,4 +1,4 @@
-"""Offline guard: tests without the `network` marker cannot reach the network.
+"""Offline guard: tests without the `network` or `platform` marker cannot reach the network.
 
 In the pytest process, socket connections to non-local hosts raise. Tool
 subprocesses inherit HTTP(S) proxies that point to a closed local port, so any
@@ -28,7 +28,7 @@ class NetworkAccessError(OSError):
 
 @pytest.fixture(autouse=True)
 def _offline(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
-    if request.node.get_closest_marker("network"):
+    if request.node.get_closest_marker("network") or request.node.get_closest_marker("platform"):
         return
     real_connect = socket.socket.connect
 
