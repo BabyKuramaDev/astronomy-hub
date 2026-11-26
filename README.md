@@ -8,17 +8,16 @@ The full design is in [`docs/SPEC.md`](docs/SPEC.md) (in Spanish).
 
 ## Status
 
-M2 (verification tools) is done: a script builds WASP-18 b's complete dossier
-without an LLM, through the ten vetting gates and an independent reproduction, and
-in blind (eval) mode it ends in `candidate`. Synthetic eclipsing binaries, glitches,
-rotators and inverted light curves are rejected. Agents start in M3.
+M3 (agent skeleton) is done: `make hello` runs WASP-18 b on Claude Managed Agents with
+the six agents, downloads the dossier, validates it and ends in `candidate` (about
+0.80 USD per star); in explore mode Catalog cuts it early as `known`. Evals start in M4.
 
 | Milestone | Scope |
 | --- | --- |
 | M0 Scaffold | Layout, `shared/contracts`, architecture tests, CI, secret scanning |
 | M1 Signal tools | Download, clean, period search, fold, transit fit |
-| **M2 Verification tools** | Crossmatch, vetting gates, independent reproduction, ephemeris, report |
-| M3 Agent skeleton | Six agents on Claude Managed Agents, with a budget per session |
+| M2 Verification tools | Crossmatch, vetting gates, independent reproduction, ephemeris, report |
+| **M3 Agent skeleton** | Six agents on Claude Managed Agents, with a budget per session |
 | M4 Evals | Eval set, runner and scorer in blind mode |
 | M5 Iteration | Prompt and skill tuning against the dev set |
 

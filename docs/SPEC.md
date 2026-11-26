@@ -320,6 +320,16 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 - `scripts/build_dossier.py` (`make dossier`) corre cada tool por subprocess, como un agente con bash, y reemplaza cada elección por una regla fija: el primer pico que acepta `select-peak`, sin repeticiones de pruebas, rationales fijos. Si vetting da `false_positive` no corre el MCMC ni `reproduce`. En modo `eval` no corre el MCMC (las métricas no lo usan) y `crossmatch` corre después de `decide`. Con WASP-18 b completo y el MCMC por defecto tarda unos 6 minutos, 5 de ellos del MCMC.
 - wotan y transitleastsquares compilan kernels de numba con `cache=True`; se importan dentro de las funciones porque numba fija el directorio de caché al decorar, y `isolated_caches` lo apunta antes a `<workspace>/.cache/numba`. En los tests va a `.pytest_cache/numba`.
 
+**Notas de implementación de M3**
+
+- `make hello` (eval) con WASP-18 b, sesión `sesn_019BVuamXrMwmuQLdSogzDBv`: termina en `candidate`, período 0,94144 d (dentro del 1%), las seis tools escribieron contratos válidos y los seis agentes trabajaron. Costo de lista 0,82 USD, 284 segundos activos. Por agente: Director 0,22, Abogado del diablo 0,16, Bibliotecario 0,15, Revisor 0,12, Redactor 0,10 y Buscador 0,07 USD. Casi todo el input es caché (756 mil tokens leídos de caché, 126 sin caché, 14 mil de salida).
+- `make hello MODE=explore`, sesión `sesn_018viDKfS7S9W4YmAbQBYHNW`: corta en `known` después del Bibliotecario, sin Abogado ni Revisor. 0,33 USD, 229 segundos.
+- La primera auditoría marcó 15 de 39 comandos y eran falsos positivos: cortaba en `|`, `;` y `>` dentro de comillas. Con un tokenizador de shell (`python -m runtime.audit runs/<run_id>` recalcula una corrida guardada) da 0. Los 39 comandos son tools del repo o lecturas.
+- `bin/setup-sandbox` tardó 16 y 30 segundos en las sesiones reales (8 en la sonda).
+- Los agentes gastaron algunas llamadas en adivinar la sintaxis (`bin/hub exoplanets ...`) y el Revisor exploró el repo buscando cómo validar. Es materia de M5.
+- `ant apply` no borra un campo omitido: para vaciar los paquetes del environment hubo que escribir `packages: {pip: []}`.
+- La línea de `package-dossier` en `log.jsonl` se escribe después de armar el tar, así que no viaja en el expediente bajado.
+
 **Las diez pruebas de descarte**
 
 Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos. Los umbrales son los de la referencia salvo donde se indica, y viven en `mission.yaml` (`vetting.gates`) junto con la severidad de cada prueba.
@@ -612,6 +622,9 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
 - [ ] Objetivos definitivos de los evals, después de la primera corrida.
 - [ ] (M4) El MCMC tarda unos 5 minutos y un comando bash se corta a los 295 segundos: en modo explore, `fit-transit --mode mcmc` no entra en una sola llamada. Opciones: correrlo desacoplado y consultar el resultado, o partir la cadena en tramos con estado en el expediente. En eval no corre.
+- [ ] (M4) Costo por estrella: 0,82 USD en eval con WASP-18 b (un caso fácil). Con 30 estrellas de desarrollo, unos 25 USD por corrida de `make eval-dev`; hace falta fijar el tope por corrida de evals y cuántas sesiones en paralelo.
+- [ ] (M4) `select-targets` y `registry` del Director: no hicieron falta para `make hello`.
+- [ ] (M4) En eval el Bibliotecario conserva la web (corre después de `decide`) y el sandbox es compartido: la auditoría por lista blanca lo vigila, pero conviene que el scorer descarte una corrida con comandos marcados antes de `decide`.
 - [ ] (M4) Antes de gastar en agentes, correr el pipeline determinista (`make dossier`) sobre todo el set de evals como línea de base: no usa créditos y muestra qué aportan los agentes por encima del script.
 
 **Dudas de M1, resueltas en M2**
