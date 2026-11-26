@@ -244,6 +244,8 @@ Mismo patrón que `select-peak`: cada contexto con criterio tiene una tool que c
 
 Las tres tools (y `fit-transit --mode mcmc`) rechazan (exit 2) archivos calculados sobre otro `signal.json`: comparan el hash de `inputs` con el del archivo actual. El hash es del archivo, no de `data`, así que volver a correr `select-peak` con el mismo pico (cambia `created_at`) también obliga a rehacer lo que sigue: es la opción estricta y coincide con lo que registra `inputs`.
 
+`render-report` necesita `decision.json`, porque el reporte empieza por el veredicto: `decide` corre antes que `render-report` (el prompt del Director de M3 tiene que respetar ese orden). La plantilla (`contexts/reporting/infrastructure/templates/report.md.j2`) pone la fuente de cada número, dice qué archivos faltan y cierra con las limitaciones de la v0.1 y la procedencia de cada archivo.
+
 `decide` en modo `eval` no lee `catalog.json` aunque exista, y con `vetting.verdict = false_positive` no necesita `review.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
 
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.

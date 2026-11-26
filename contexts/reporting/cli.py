@@ -1,22 +1,27 @@
-"""Command-line entry point of the `reporting` context.
-
-Each use case is exposed as a tool (a subcommand). There are no tools yet, so
-every invocation exits with status 2 (invalid input).
-"""
+"""Tools of the `reporting` context: render-report."""
 
 import argparse
 
+from contexts.reporting.application.render_report import RenderReport
+from contexts.reporting.infrastructure.jinja import JinjaRenderer
+from shared.kernel.contexts import Context
+from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m contexts.reporting.cli")
-    parser.add_subparsers(dest="tool", metavar="tool", required=True)
-    return parser
+
+def render_report(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
+    use_case = RenderReport(ctx.dossier, ctx.meta, JinjaRenderer())
+    return ToolResult(summary=use_case.execute(args.summary))
 
 
-def main(argv: list[str] | None = None) -> int:
-    build_parser().parse_args(argv)
-    return 0
-
+cli = ToolCli(Context.REPORTING)
+r = cli.tool(
+    "render-report",
+    "Write report.md from the dossier with a fixed template: verdict first, every number "
+    "with the file it came from.",
+    render_report,
+)
+r.add_argument("--summary", help="the Writer's prose, placed after the verdict")
+main = cli.main
 
 if __name__ == "__main__":
     raise SystemExit(main())

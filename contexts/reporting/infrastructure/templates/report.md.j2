@@ -1,0 +1,148 @@
+# TIC {{ tic_id }}: {{ decision.final }}
+
+**Verdict: {{ verdict_text }}** (`decision.json`, mode `{{ decision.mode }}`).
+
+{{ decision.reason }}
+
+**Next step** (`decision.json`): {{ decision.next_step }}
+{% if summary %}
+
+## Summary
+
+{{ summary }}
+{% endif %}
+
+## Signal
+
+{% if signal and signal.detected -%}
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Period | {{ signal.period_days | num(7) }} d | `signal.json` |
+| Mid-transit epoch | {{ signal.epoch_btjd | num(9) }} BTJD | `signal.json` |
+| Duration (BLS box) | {{ signal.duration_hours | num(3) }} h | `signal.json` |
+| Depth (BLS box) | {{ signal.depth_ppm | num(4) }} ppm | `signal.json` |
+| SNR (white noise) | {{ signal.snr | num(4) }} | `signal.json` |
+| Transits with data | {{ signal.n_transits }} | `signal.json` |
+| Sectors | {{ signal.sectors | join(", ") }} | `signal.json` |
+| Noise floor (highest SNR on the inverted curve) | {{ search.inverted_snr_max | num(3) if search else "–" }} | `search.json` |
+{%- elif signal %}
+No transit-like signal was recorded (`signal.json`: `detected=false`).
+{%- else %}
+`signal.json` is not in the dossier.
+{%- endif %}
+
+## Model
+
+{% if model -%}
+Fit method: `{{ model.method }}` (`model.json`).
+
+| Parameter | Value | Source |
+| --- | --- | --- |
+| Radius ratio Rp/R* | {{ model.rp_rs | meas(4) }} | `model.json` |
+| Radius of the companion | {{ model.planet_radius_rearth | meas(3) }} R⊕ | `model.json` |
+| Impact parameter | {{ model.impact_parameter | meas(3) }} | `model.json` |
+| a/R* | {{ model.a_rs | meas(4) }} | `model.json` |
+| Period | {{ model.period_days | meas(8) }} d | `model.json` |
+| Mid-transit epoch | {{ model.epoch_btjd | meas(10) }} BTJD | `model.json` |
+| Total duration T14 | {{ model.duration_hours | meas(4) }} h | `model.json` |
+| Jitter | {{ model.jitter_ppm | meas(3) }} ppm | `model.json` |
+{% if model.convergence -%}
+| MCMC converged | {{ "yes" if model.convergence.converged else "no" }} (τ_max {{ model.convergence.tau_max | num(3) }}, {{ model.convergence.n_post_burn }} post-burn steps) | `model.json` |
+{% endif %}
+{%- if model.stellar_source %}
+Stellar radius from {{ model.stellar_source }} (`star.json`).
+{%- endif %}
+{%- else %}
+`model.json` is not in the dossier.
+{%- endif %}
+
+## Vetting
+
+{% if vetting -%}
+Verdict: **{{ vetting.verdict }}** (`vetting.json`). {{ vetting.rationale }}
+
+| Gate | Status | Severity | Value | Threshold | Runs | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+{% for g in vetting.gates -%}
+| `{{ g.id }}` | {{ g.status }} | {{ g.severity }} | {{ g.value | g }} | {{ g.threshold | g }} | {{ g.n_runs }} | {{ g.note | cell }} |
+{% endfor %}
+All values from `vetting.json`; every run is in `vetting/runs.json`.
+{%- else %}
+`vetting.json` is not in the dossier.
+{%- endif %}
+
+## Independent review
+
+{% if review -%}
+Verdict: **{{ review.verdict }}** (`review.json`). {{ review.rationale }}
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Independent period | {{ review.period_days_independent | num(7) }} d | `review.json` |
+| Independent depth | {{ review.depth_ppm_independent | num(4) }} ppm | `review.json` |
+| Period ratio (independent / signal) | {{ review.period_ratio | num(6) }} | `review.json` |
+| Depth ratio (independent / signal) | {{ review.depth_ratio | num(3) }} | `review.json` |
+{% if reproduction -%}
+| Method | {{ reproduction.detrend_method }} detrending, {{ reproduction.search_method | upper }} search | `review/reproduction.json` |
+| SDE | {{ reproduction.sde | num(3) }} (threshold {{ reproduction.sde_min | num(2) }}) | `review/reproduction.json` |
+{% endif %}
+{%- for d in review.disagreements %}
+- Disagreement: {{ d }}
+{%- endfor %}
+{%- else %}
+`review.json` is not in the dossier.
+{%- endif %}
+
+## Catalogs
+
+{% if catalog -%}
+Status: `{{ catalog.status }}` (`catalog.json`).{% if decision.mode == "eval" %} In eval mode the catalogs are consulted after the decision and never enter it.{% endif %}
+
+{% if catalog.matches -%}
+| Catalog | Id | Period (d) | Disposition | Same period |
+| --- | --- | --- | --- | --- |
+{% for m in catalog.matches -%}
+| {{ m.catalog }} | [{{ m.id }}]({{ m.url }}) | {{ m.period_days | num(7) }} | {{ m.disposition or "–" }} | {{ {True: "yes", False: "no", None: "–"}[m.period_match] }} |
+{% endfor %}
+{%- else -%}
+No catalog entry for this star.
+{%- endif %}
+{%- for n in catalog.notes %}
+- {{ n }}
+{%- endfor %}
+{%- else %}
+`catalog.json` is not in the dossier.
+{%- endif %}
+
+## Next transits
+
+{% if ephemeris and ephemeris.transits -%}
+From `ephemeris.json` (model `{{ ephemeris.model_method }}`), starting {{ ephemeris.start_utc.strftime("%Y-%m-%d %H:%M") }} UTC. Times are barycentric (BJD_TDB) shown in UTC, up to about 8 minutes from the local arrival time.
+
+| n | Mid-transit (UTC) | Ingress (UTC) | Egress (UTC) | 1σ (min) |
+| --- | --- | --- | --- | --- |
+{% for t in ephemeris.transits[:10] -%}
+| {{ t.n }} | {{ t.mid_utc.strftime("%Y-%m-%d %H:%M") }} | {{ t.ingress_utc.strftime("%H:%M") }} | {{ t.egress_utc.strftime("%H:%M") }} | {{ t.err_minutes | num(2) }} |
+{% endfor %}
+{%- else -%}
+`ephemeris.json` is not in the dossier or lists no transit.
+{%- endif %}
+
+## What would confirm or refute it
+
+{{ decision.next_step }} A deeper secondary eclipse, an odd-even difference or a centroid shift in new data would refute it; transits at the predicted times with the same depth would support it.
+
+## Limitations
+
+- The fit has a jitter term but no red-noise model, so errors may be underestimated.
+- The secondary eclipse is only searched at phase 0.5 (circular orbit).
+- A second companion whose period is an integer ratio of this one can hide as a harmonic.
+- Only SPOC 2-minute light curves of the selected sectors are used.
+
+## Provenance
+
+| File | Produced by | Version | Created (UTC) |
+| --- | --- | --- | --- |
+{% for row in provenance -%}
+| `{{ row.file }}` | {{ row.context }} `{{ row.tool }}` | `{{ row.version }}` | {{ row.created }} |
+{% endfor %}
