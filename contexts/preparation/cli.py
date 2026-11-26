@@ -1,22 +1,23 @@
-"""Command-line entry point of the `preparation` context.
-
-Each use case is exposed as a tool (a subcommand). There are no tools yet, so
-every invocation exits with status 2 (invalid input).
-"""
+"""Tools of the `preparation` context: clean."""
 
 import argparse
 
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m contexts.preparation.cli")
-    parser.add_subparsers(dest="tool", metavar="tool", required=True)
-    return parser
+from contexts.preparation.application.clean import Clean
+from shared.kernel.contexts import Context
+from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
 
 
-def main(argv: list[str] | None = None) -> int:
-    build_parser().parse_args(argv)
-    return 0
+def clean(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
+    return ToolResult(summary=Clean(ctx.dossier, ctx.meta, ctx.mission.preparation).execute())
 
+
+cli = ToolCli(Context.PREPARATION)
+cli.tool(
+    "clean",
+    "Normalize per sector, detrend, clip upward outliers and stitch sectors.",
+    clean,
+)
+main = cli.main
 
 if __name__ == "__main__":
     raise SystemExit(main())
