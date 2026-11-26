@@ -94,11 +94,14 @@ vetting:
     plausibility:
       severity: hard
       planet_radius_min_rearth: 0.4
-      # Largest pl_radj among confirmed transiting planets: Kepler-1979 b, 2.617 R_jup.
-      # NASA Exoplanet Archive pscomppars (tran_flag=1), queried 2026-11-26:
-      # select pl_name,pl_radj from pscomppars where tran_flag=1 and pl_radj>1.8
-      # The reference uses 18 R_earth, which would reject confirmed inflated hot Jupiters.
-      planet_radius_max_rjup: 2.62
+      # 99th percentile of pl_radj (linear interpolation) over confirmed transiting planets
+      # whose relative radius error, max(pl_radjerr1, |pl_radjerr2|) / pl_radj, is below 20%:
+      # 1.6446 R_jup from 3562 of 4452 planets with errors. The catalog maximum is not used:
+      # a single extreme case would set it. NASA Exoplanet Archive TAP, queried 2026-11-26:
+      # select pl_name,pl_radj,pl_radjerr1,pl_radjerr2 from pscomppars where tran_flag=1
+      #   and pl_radj is not null and pl_radjerr1 is not null and pl_radjerr2 is not null
+      # The reference uses 18 R_earth (about 1.6 R_jup).
+      planet_radius_max_rjup: 1.64
       duration_ratio: [0.2, 2.2]
     centroid: {severity: hard, max_sigma: 3.0, max_shift_arcsec: 2.5, pixel_scale_arcsec: 21.0}
     coherence:
