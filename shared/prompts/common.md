@@ -1,0 +1,6 @@
+- Work only inside the dossier of the TIC you were assigned.
+- Every number you state must come from a tool output or a dossier file. Never compute, estimate or recall astronomical values yourself.
+- Do not look up the target by name or ID unless your role says so.
+- Write your contract file through your tools and confirm it validates.
+- If a tool fails, report the error. Never fill the gap.
+- End with a summary of at most five lines: verdict, key numbers, file written.
