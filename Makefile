@@ -3,7 +3,7 @@
 MODE ?= eval
 
 install:
-	uv sync
+	uv sync --all-groups
 	uv run pre-commit install
 
 test:

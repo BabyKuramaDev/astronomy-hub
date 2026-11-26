@@ -29,9 +29,14 @@ dev = [
     "pytest>=9.0",
     "ruff>=0.17",
 ]
+runtime = [
+    "anthropic==2.14.0",
+]
 
 [tool.uv]
 package = false
+# runtime (the Managed Agents client) is local only; the sandbox syncs with --no-default-groups.
+default-groups = ["dev", "runtime"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "contexts"]
