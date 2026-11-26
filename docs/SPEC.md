@@ -80,7 +80,7 @@ Los agentes ejecutan las tools con bash, las tools dejan su resultado en el expe
 | `direction` | Director | Agente líder | `plan.json`, `decision.json` |
 | `acquisition` | Recolector | Tools | `lightcurve/`, `star.json` |
 | `preparation` | Preparador | Tools | `lightcurve_clean.parquet` |
-| `detection` | Buscador | Agente | `signal.json` |
+| `detection` | Buscador | Agente | `search.json`, `signal.json`, `folds/` |
 | `modeling` | Modelador | Tools | `model.json` |
 | `catalog` | Bibliotecario | Agente | `catalog.json` |
 | `vetting` | Abogado del diablo | Agente | `vetting.json` |
@@ -153,10 +153,12 @@ El expediente es una carpeta por estrella donde cada contexto deja un archivo co
 ```
 workspace/exoplanets/<tic_id>/
 ├── plan.json                  # direction
-├── lightcurve/                # acquisition: FITS crudos por sector
+├── lightcurve/                # acquisition: FITS crudos por sector, sNNNN.parquet y manifest.json
 ├── star.json                  # acquisition: parámetros de la estrella y vecinos
 ├── lightcurve_clean.parquet   # preparation
+├── search.json                # detection: picos de BLS y armónicos descartados
 ├── signal.json                # detection
+├── folds/                     # detection: datos y resumen de cada curva plegada
 ├── model.json                 # modeling
 ├── catalog.json               # catalog
 ├── vetting.json               # vetting
@@ -165,7 +167,8 @@ workspace/exoplanets/<tic_id>/
 ├── decision.json              # direction
 ├── report.md                  # reporting
 ├── figures/                   # PNG de curvas plegadas y pruebas
-└── log.jsonl                  # una línea por tool ejecutada
+├── log.jsonl                  # una línea por tool ejecutada
+└── .cache/                    # cachés de astropy, astroquery y matplotlib de esta estrella
 ```
 
 Todos los JSON comparten un sobre: `schema_version`, `tic_id`, `mission`, `produced_by` (contexto, tool, versión), `created_at`, `inputs` (hash de cada archivo leído) y `data`.
@@ -188,6 +191,10 @@ Todos los modelos son inmutables y rechazan campos desconocidos (`extra="forbid"
 | --- | --- |
 | `signal.json` | `detected`, `period_days`, `epoch_btjd`, `duration_hours`, `depth_ppm`, `snr`, `n_transits`, `sectors`, `method`, `other_peaks` |
 | `model.json` | `rp_rs`, `planet_radius_rearth`, `impact_parameter`, `a_rs` como `Measurement`, `stellar_source` |
+| `star.json` | `ra_deg`, `dec_deg`, `tmag`, `teff_k`, `logg`, `radius_rsun`, `mass_msun`, `contamination_ratio`, `source`, `neighbor_radius_arcsec`, `neighbors` |
+| `lightcurve/manifest.json` | `flux_column`, `available_sectors`, `selection_rule`, `sectors` (archivo FITS, tabla extraída, cadencias, puntos válidos, inicio y fin) |
+| `search.json` | `method`, `sectors`, `period_min_days`, `period_max_days`, `peaks` (id, período, época, duración, profundidad, SNR, tránsitos), `discarded` (pico, motivo, `harmonic_of`, `ratio`) |
+| `folds/<tag>.json` | Período, época y duración usados, profundidad por bin, pares contra impares, dispersión fuera de tránsito |
 | `catalog.json` | `status` (`known_planet`, `toi`, `ctoi`, `known_false_positive`, `eclipsing_binary`, `unknown`), `matches` (catálogo, id, período, disposición, URL), `literature` |
 | `vetting.json` | `gates` (`id`, `status`, `severity`, `value`, `threshold`, `note`), `verdict` (`candidate`, `false_positive`, `inconclusive`), `rationale` |
 | `review.json` | `period_days_independent`, `depth_ppm_independent`, `disagreements`, `verdict` (`reproduced`, `partial`, `not_reproduced`) |
@@ -199,6 +206,10 @@ Todos los modelos son inmutables y rechazan campos desconocidos (`extra="forbid"
 - `model.json`: cada parámetro es un `Measurement {value, err_lower, err_upper}`. Los errores son magnitudes no negativas: el intervalo es `[value - err_lower, value + err_upper]`.
 - `catalog.json`: cada elemento de `literature` es `{title, url, note}`. `disposition` en `matches` es un string libre hasta confirmar los valores de ExoFOP.
 - `vetting.json`: cada gate tiene `id` como slug (no número), `status` (`pass`, `fail`, `marginal`), `severity` (`hard`, `soft`), y `value` y `threshold` como `float | None`. Qué gates son `hard` se define en M2.
+- `model.json`: `planet_radius_rearth` y `stellar_source` son opcionales y van juntos. Si `star.json` no trae el radio estelar con su error, el ajuste termina bien, ambos quedan en `null` y la tool lo avisa en el resumen. Si lo trae, el error del radio estelar se propaga al del planeta.
+- `star.json`: cada parámetro estelar es un `Measurement` y solo se registra si el TIC trae el valor con su error; si no, queda en `null`. Los vecinos son `{tic_id, separation_arcsec, tmag}`, ordenados por separación.
+- `search.json`: los picos con profundidad no positiva y los armónicos de un pico mejor rankeado no entran en `peaks`, pero quedan en `discarded` con su motivo (`non_positive_depth` o `harmonic`) y, si es armónico, con el id del pico que se quedó y la razón entre períodos (por ejemplo `"2/1"`).
+- El SNR de un pico es `depth / depth_err` del BLS de astropy: es un SNR de ruido blanco. En M2 hay que verificar que coincida con la definición de la prueba 3 del repo de referencia.
 - `review.json`: `verdict` tiene su propio enum, distinto del de vetting, y reemplaza al booleano `reproduced`. Con `reproduced`, `period_days_independent` y `depth_ppm_independent` son obligatorios; en los otros casos pueden ir en `null`. `disagreements` es una lista de strings.
 
 **Regla del Director para `decision.json`**
@@ -213,7 +224,8 @@ Los cortes anteriores (`no_signal` después de Detection, `known` o `false_posit
 
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.
 - Un agente nunca edita a mano el JSON de otro contexto.
-- `log.jsonl` registra comando, versión, duración y hash de salida, para poder reproducir cualquier expediente. El hash de salida de un JSON se calcula sobre `data` serializado en forma canónica, no sobre el sobre: dos corridas iguales dan el mismo hash aunque cambie `created_at`.
+- `log.jsonl` registra comando, versión, duración y hash de salida, para poder reproducir cualquier expediente. Cada línea es un `LogEntry`: `ts`, `context`, `tool`, `argv`, `version`, `duration_s`, `exit_code`, `outputs` (ruta y hash), `summary` (el mismo resumen que va a stdout), `reason` (opcional, por ejemplo el `--reason` de `select-peak`) y `error`.
+- `produced_by.version` es `0.1.0+g<sha corto>`, con el sufijo `.dirty` si el árbol tiene cambios sin commitear, o `0.1.0` si no hay git. El hash de salida de un JSON se calcula sobre `data` serializado en forma canónica, no sobre el sobre: dos corridas iguales dan el mismo hash aunque cambie `created_at`.
 - Cada sesión arranca con disco vacío. Al terminar, el expediente se copia a `/mnt/session/outputs/` y `runtime/` lo baja.
 
 ## Tools
@@ -222,29 +234,43 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 
 **Convención**
 
-- Se invoca como `python -m contexts.<contexto>.cli <tool> --tic <id> --workspace <dir>`.
+- Se invoca como `python -m contexts.<contexto>.cli <tool> --tic <id> --workspace <dir> [--mission exoplanets]`. `--workspace` es la raíz (por defecto `workspace/`); el expediente queda en `<workspace>/<misión>/<tic_id>/`.
 - `cli.py` solo parsea argumentos y llama al `execute()` del caso de uso.
 - Lee y escribe únicamente en el expediente. Por stdout devuelve un resumen JSON de pocas líneas, para no llenar el contexto del agente.
 - Códigos de salida: 0 correcto, 2 entrada inválida, 3 dato no disponible. El error va a stderr en una línea legible.
 - Es idempotente y usa semilla fija donde hay azar.
 - Agrega una línea a `log.jsonl`.
+- Los umbrales y parámetros que usa salen de `mission.yaml`, validado por el schema de `shared/mission.py`.
+- Las descargas van al expediente. Las cachés de astropy, astroquery y matplotlib se redirigen a `<expediente>/.cache/`; nada se escribe en cachés globales.
 
 | Contexto | Tool | Qué hace | Librería sugerida |
 | --- | --- | --- | --- |
 | `direction` | `select-targets` | Lista los TIC a procesar según los criterios de la misión | astroquery |
 | `direction` | `registry` | Registra estrellas ya procesadas para no repetirlas | (propia) |
-| `acquisition` | `fetch-lightcurves` | Baja las curvas de luz de TESS disponibles para el TIC | lightkurve, astroquery |
+| `acquisition` | `fetch-lightcurves` | Baja las curvas SPOC de 2 minutos de los sectores elegidos por la regla de `mission.yaml` y extrae `PDCSAP_FLUX`, descartando puntos con NaN o `QUALITY` distinto de 0 | astroquery, astropy |
 | `acquisition` | `fetch-star` | Trae parámetros de la estrella y sus vecinas cercanas | astroquery |
-| `preparation` | `clean` | Quita puntos con mala calidad, outliers y tendencia, y une sectores | wotan, lightkurve |
-| `detection` | `search-period` | Busca períodos con BLS y devuelve los mejores picos con su SNR | astropy |
-| `detection` | `fold` | Pliega la curva en un período dado y guarda datos y figura | astropy |
-| `modeling` | `fit-transit` | Ajusta un modelo de tránsito con incertidumbres | batman, emcee |
+| `preparation` | `clean` | Normaliza por sector, quita la tendencia, recorta outliers hacia arriba y une sectores | wotan |
+| `detection` | `search-period` | Busca períodos con BLS y escribe en `search.json` los mejores picos con su SNR; descarta los de profundidad no positiva y los armónicos, dejándolos anotados | astropy |
+| `detection` | `select-peak` | Registra la elección del Buscador: escribe `signal.json` desde `search.json` con `--peak <id>` o `--no-signal`. Rechaza un pico bajo `snr_min` o `min_transits`. Acepta `--reason`, que va a `log.jsonl` | (propia) |
+| `detection` | `fold` | Pliega la curva en un pico de `search.json` o en un período dado; guarda datos, figura y un resumen numérico que también imprime por stdout | astropy, matplotlib |
+| `modeling` | `fit-transit` | Ajusta un modelo de tránsito con incertidumbres; informa la convergencia (tiempo de autocorrelación y fracción de aceptación) | batman, emcee |
 | `catalog` | `crossmatch` | Busca el TIC en NASA Exoplanet Archive y en las listas TOI y CTOI de ExoFOP | astroquery |
 | `vetting` | `run-gates` | Corre las diez pruebas de descarte y escribe cada resultado | (portado) |
 | `vetting` | `run-gate` | Repite una sola prueba con otros parámetros | (portado) |
 | `review` | `reproduce` | Rehace limpieza y búsqueda con otro método, sin leer `signal.json` | transitleastsquares |
 | `followup` | `ephemeris` | Calcula los próximos tránsitos con su incertidumbre | astropy |
 | `reporting` | `render-report` | Arma `report.md` desde el expediente con una plantilla | jinja2 |
+
+**`mission.yaml`**
+
+Cada tool lee de `missions/<misión>/mission.yaml` los parámetros que consume, con una sección por contexto. El schema vive en `shared/mission.py` y rechaza claves desconocidas. Los valores son parámetros de diseño, no datos de ninguna estrella; el único que sale de este spec es `snr_min: 8`, de la prueba 3.
+
+Regla de selección de sectores (`acquisition.sector_selection.rule: longest_consecutive_run`), determinista y con preferencia por sectores consecutivos:
+
+1. De los sectores SPOC de 2 minutos disponibles, se arman las corridas de números de sector consecutivos.
+2. Se elige la corrida más larga; si hay empate, la más reciente.
+3. Si la corrida tiene más de `max_sectors`, se quedan sus `max_sectors` sectores más recientes.
+4. No se agregan sectores de otras corridas: un baseline compacto mantiene chica la grilla de BLS.
 
 **Las diez pruebas de descarte**
 
@@ -272,7 +298,7 @@ Seis agentes: el Director coordina y delega en cinco especialistas, con un solo 
 | Agente | Contexto | Modelo inicial | Tools propias | Usa también tools de | Web |
 | --- | --- | --- | --- | --- | --- |
 | Director | `direction` | `claude-opus-5-5` | `select-targets`, `registry` | ninguna; delega | No |
-| Buscador | `detection` | `claude-sonnet-5-5` | `search-period`, `fold` | `acquisition`, `preparation`, `modeling` | No |
+| Buscador | `detection` | `claude-sonnet-5-5` | `search-period`, `select-peak`, `fold` | `acquisition`, `preparation`, `modeling` | No |
 | Bibliotecario | `catalog` | `claude-sonnet-5-5` | `crossmatch` | ninguna | Sí |
 | Abogado del diablo | `vetting` | `claude-opus-5-5` | `run-gates`, `run-gate` | `detection` (`fold`) | No |
 | Revisor independiente | `review` | `claude-opus-5-5` | `reproduce` | `acquisition`, `preparation` | No |
@@ -341,7 +367,7 @@ You direct an exoplanet transit search. You never analyze light curves yourself.
 Buscador
 
 ```text
-You find periodic transit-like dips in a TESS light curve. Run the acquisition and preparation tools, then search-period. Inspect the top peaks with fold. Discard peaks that are harmonics of each other or of the stellar rotation, or that come from a single sector edge. If a peak clears the mission SNR threshold with at least three transits, run fit-transit. Write signal.json. Reporting no signal is a correct and common outcome.
+You find periodic transit-like dips in a TESS light curve. Run the acquisition and preparation tools, then search-period. Inspect the top peaks with fold. Discard peaks that are harmonics of each other or of the stellar rotation, or that come from a single sector edge. Record your choice with select-peak --peak <id>, or select-peak --no-signal, and always give a --reason. If you selected a peak, run fit-transit. Reporting no signal is a correct and common outcome.
 ```
 
 Bibliotecario
@@ -396,11 +422,14 @@ config:
       - numpy
       - astropy
       - astroquery
-      - lightkurve
       - wotan
       - transitleastsquares
       - batman-package
       - emcee
+      - pyarrow
+      - matplotlib
+      - pyyaml
+      - setuptools        # batman importa distutils, que Python 3.12 ya no trae
       - pydantic
   networking:
     type: limited
@@ -449,6 +478,7 @@ Lo arma `evals/build_set.py` consultando los catálogos; nunca a mano ni de memo
 | Falsos positivos | 20 | Lista TOI de ExoFOP con disposición de falso positivo | Veredicto `false_positive` |
 | Sin señal conocida | 10 | Estrellas observadas por TESS sin TOI ni planeta | `no_signal`; una detección se revisa a mano, no cuenta como error |
 
+- Solo entran estrellas con curva SPOC de 2 minutos, porque es lo único que baja `fetch-lightcurves` en la v0.1.
 - La mitad de los planetas son profundos (más de 1000 ppm) y la mitad, chicos.
 - El set se parte en 30 de desarrollo y 20 reservadas, con la misma proporción de grupos. Los prompts se iteran solo contra desarrollo.
 - Se evitan las estrellas más famosas, que un modelo puede reconocer por su nombre.
@@ -515,11 +545,12 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 | Falso descubrimiento | El hub solo emite "candidato" y nada se envía a canales oficiales sin revisión humana |
 | Costo por estrella desconocido hasta M3 | Presupuesto por sesión desde la primera corrida |
 | Arranque lento del sandbox por los paquetes científicos | Medirlo en M3 y fijar versiones |
+| Cobertura: con `author: SPOC` y `exptime_s: 120` solo se procesan estrellas con curva de 2 minutos; las que solo están en imágenes completas (FFI) quedan afuera | Limitación aceptada para la v0.1; el set de evals de M4 se arma solo con estrellas que la tengan |
 
 **A confirmar al implementar**
 
 - Esquema exacto del bloque `multiagent` en el frontmatter de `agent.md`.
-- Lista completa de hosts que usan lightkurve y astroquery para bajar datos de TESS.
+- Lista completa de hosts que usa astroquery para bajar datos de TESS.
 - Nombre exacto de la columna de disposición en la lista TOI de ExoFOP y sus valores.
 - Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano.
 
@@ -527,7 +558,7 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 
 - [x] Licencia del repo: MIT a nombre de KuramaBiju, igual que la referencia de la que se portan las pruebas.
 - [x] Repo nuevo `astronomy-hub`, no una carpeta dentro de agency-hub.
-- [ ] (M1/M2) Con qué tool registra cada agente su decisión: el pico elegido por el Buscador, el veredicto del Abogado del diablo y del Revisor, y `decision.json` del Director. El spec dice que los agentes escriben su contrato a través de sus tools, pero la tabla de tools no tiene una para eso.
+- [ ] (M2) Con qué tool registran su decisión el Abogado del diablo y el Revisor (veredicto) y el Director (`decision.json`). Resuelto para detection en M1: el Buscador usa `select-peak`.
 - [ ] Prompts en inglés o en español. Propuesta: inglés.
 - [ ] Qué estrellas explora el Director después de los evals. Propuesta: enanas cercanas de tipo K y M, como los repos de referencia.
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
