@@ -161,7 +161,9 @@ workspace/exoplanets/<tic_id>/
 ├── folds/                     # detection: datos y resumen de cada curva plegada
 ├── model.json                 # modeling
 ├── catalog.json               # catalog
+├── vetting/runs.json          # vetting: cada corrida de cada prueba
 ├── vetting.json               # vetting
+├── review/reproduction.json   # review: análisis independiente (TLS)
 ├── review.json                # review
 ├── ephemeris.json             # followup
 ├── decision.json              # direction
@@ -190,29 +192,35 @@ Todos los modelos son inmutables y rechazan campos desconocidos (`extra="forbid"
 | Archivo | Campos principales de `data` |
 | --- | --- |
 | `signal.json` | `detected`, `period_days`, `epoch_btjd`, `duration_hours`, `depth_ppm`, `snr`, `n_transits`, `sectors`, `method`, `other_peaks` |
-| `model.json` | `rp_rs`, `planet_radius_rearth`, `impact_parameter`, `a_rs` como `Measurement`, `stellar_source` |
+| `model.json` | `method` (`quick`, `mcmc`), `rp_rs`, `planet_radius_rearth`, `impact_parameter`, `a_rs`, `period_days`, `epoch_btjd`, `duration_hours`, `jitter_ppm` como `Measurement`, `stellar_source`, `convergence` |
 | `star.json` | `ra_deg`, `dec_deg`, `tmag`, `teff_k`, `logg`, `radius_rsun`, `mass_msun`, `contamination_ratio`, `source`, `neighbor_radius_arcsec`, `neighbors` |
 | `lightcurve/manifest.json` | `flux_column`, `available_sectors`, `selection_rule`, `sectors` (archivo FITS, tabla extraída, cadencias, puntos válidos, inicio y fin) |
-| `search.json` | `method`, `sectors`, `period_min_days`, `period_max_days`, `peaks` (id, período, época, duración, profundidad, SNR, tránsitos), `discarded` (pico, motivo, `harmonic_of`, `ratio`) |
+| `search.json` | `method`, `sectors`, `period_min_days`, `period_max_days`, `inverted_snr_max`, `peaks` (id, período, época, duración, profundidad, SNR, SDE, tránsitos), `discarded` (pico, motivo, `harmonic_of`, `ratio`) |
 | `folds/<tag>.json` | Período, época y duración usados, profundidad por bin, pares contra impares, dispersión fuera de tránsito |
-| `catalog.json` | `status` (`known_planet`, `toi`, `ctoi`, `known_false_positive`, `eclipsing_binary`, `unknown`), `matches` (catálogo, id, período, disposición, URL), `literature` |
-| `vetting.json` | `gates` (`id`, `status`, `severity`, `value`, `threshold`, `note`), `verdict` (`candidate`, `false_positive`, `inconclusive`), `rationale` |
-| `review.json` | `period_days_independent`, `depth_ppm_independent`, `disagreements`, `verdict` (`reproduced`, `partial`, `not_reproduced`) |
-| `decision.json` | `final` (`no_signal`, `known`, `false_positive`, `candidate`, `inconclusive`), `reason`, `next_step` |
+| `catalog.json` | `status` (`known_planet`, `toi`, `ctoi`, `known_false_positive`, `eclipsing_binary`, `unknown`), `matches` (catálogo, id, período, disposición, `period_match`, URL), `literature` |
+| `vetting/runs.json` | Cada corrida de cada prueba: `gate`, `run`, `params`, `status`, `severity`, `value`, `threshold`, `note`, `metrics` |
+| `vetting.json` | `gates` (`id`, `status`, `severity`, `value`, `threshold`, `note`, `n_runs`), `verdict` (`candidate`, `false_positive`, `inconclusive`), `rationale` |
+| `review/reproduction.json` | Método de limpieza y de búsqueda, período, época, duración, profundidad, SDE y SNR independientes |
+| `review.json` | `period_days_independent`, `depth_ppm_independent`, `disagreements`, `verdict` (`reproduced`, `partial`, `not_reproduced`), `rationale` |
+| `ephemeris.json` | Período y época de referencia, fuente, inicio, próximos tránsitos (`n`, `mid_btjd`, `mid_utc`, `err_minutes`) |
+| `decision.json` | `mode` (`explore`, `eval`), `final` (`no_signal`, `known`, `false_positive`, `candidate`, `inconclusive`), `reason`, `next_step` |
 
 **Detalle de los contratos**
 
 - `signal.json`: `period_days`, `epoch_btjd`, `duration_hours`, `depth_ppm`, `snr` y `n_transits` son opcionales en el tipo, pero un validador los exige con `detected=true` y los exige en `null` con `detected=false`. `sectors` (al menos uno), `method` y `other_peaks` van siempre. Cada elemento de `other_peaks` es `{period_days, snr, depth_ppm}`.
 - `model.json`: cada parámetro es un `Measurement {value, err_lower, err_upper}`. Los errores son magnitudes no negativas: el intervalo es `[value - err_lower, value + err_upper]`.
-- `catalog.json`: cada elemento de `literature` es `{title, url, note}`. `disposition` en `matches` es un string libre hasta confirmar los valores de ExoFOP.
-- `vetting.json`: cada gate tiene `id` como slug (no número), `status` (`pass`, `fail`, `marginal`), `severity` (`hard`, `soft`), y `value` y `threshold` como `float | None`. Qué gates son `hard` se define en M2.
+- `catalog.json`: cada elemento de `literature` es `{title, url, note}`. `disposition` en `matches` es el valor del catálogo: `tfopwg_disp` de la lista TOI (`APC`, `CP`, `FA`, `FP`, `KP`, `PC` o vacío), la disposición TFOPWG de la CTOI, o `CONFIRMED` para `pscomppars`. `period_match` dice si el período del match coincide con el de `signal.json` (1% o razón entera, alias incluidos); es `null` si no hay señal o el match no trae período.
+- `vetting.json`: cada gate tiene `id` como slug (no número), `status` (`pass`, `fail`, `marginal`), `severity` (`hard`, `soft`, `info`), `value` y `threshold` como `float | None`, y `n_runs`, la cantidad de corridas combinadas. Las severidades están en la tabla de las diez pruebas.
 - `model.json`: `planet_radius_rearth` y `stellar_source` son opcionales y van juntos. Si `star.json` no trae el radio estelar con su error, el ajuste termina bien, ambos quedan en `null` y la tool lo avisa en el resumen. Si lo trae, el error del radio estelar se propaga al del planeta.
 - `star.json`: cada parámetro estelar es un `Measurement` y solo se registra si el TIC trae el valor con su error; si no, queda en `null`. Los vecinos son `{tic_id, separation_arcsec, tmag}`, ordenados por separación.
 - `search.json`: los picos con profundidad no positiva y los armónicos de un pico mejor rankeado no entran en `peaks`, pero quedan en `discarded` con su motivo (`non_positive_depth` o `harmonic`) y, si es armónico, con el id del pico que se quedó y la razón entre períodos (por ejemplo `"2/1"`).
 - Un pico es armónico de otro mejor rankeado si la razón entre sus períodos coincide, dentro de `harmonic_tolerance`, con un múltiplo o submúltiplo entero cualquiera, o con una fracción n/m con n, m ≤ `harmonic_max_integer`.
 - `folds/<tag>.json`: la profundidad en tránsito y la de tránsitos pares e impares se miden tránsito por tránsito; su error sale de la dispersión entre tránsitos y no de la dispersión punto a punto, para que una diferencia sistemática entre sectores no parezca significativa. `n_odd` y `n_even` cuentan tránsitos.
-- El SNR de un pico es `depth / depth_err` del BLS de astropy: es un SNR de ruido blanco. En M2 hay que verificar que coincida con la definición de la prueba 3 del repo de referencia.
-- `review.json`: `verdict` tiene su propio enum, distinto del de vetting, y reemplaza al booleano `reproduced`. Con `reproduced`, `period_days_independent` y `depth_ppm_independent` son obligatorios; en los otros casos pueden ir en `null`. `disagreements` es una lista de strings.
+- El SNR de un pico es `depth / depth_err` del BLS de astropy: es un SNR de ruido blanco, la misma definición que usa la prueba 3 del repo de referencia (`objective="snr"`). Como en una curva invertida BLS encuentra bajones de ruido con SNR por encima de `snr_min`, `search-period` corre la misma búsqueda sobre la curva invertida (`2 - flux`) y guarda su SNR máximo como `inverted_snr_max`, el piso de ruido de esa estrella.
+- Cada pico guarda también su SDE (`(power - media) / desviación` del periodograma). Es un dato para calibrar en M5; ninguna regla lo usa como umbral.
+- `model.json`: `method` es `quick` (mínimos cuadrados, errores simétricos de la covarianza) o `mcmc` (emcee, percentiles 16-50-84). Los dos modelos tienen un término de jitter que se suma en cuadratura al error de cada punto, y lo informan en `jitter_ppm`. `duration_hours` es la duración total T14 derivada de los parámetros. `convergence` (`tau_max`, `n_post_burn`, `autocorr_factor`, `converged`, `acceptance_mean`, `acceptance_min`) va solo con `mcmc`.
+- `review.json`: `verdict` tiene su propio enum, distinto del de vetting, y reemplaza al booleano `reproduced`. Con `reproduced`, `period_days_independent` y `depth_ppm_independent` son obligatorios; en los otros casos pueden ir en `null`. `disagreements` es una lista de strings que calcula la tool.
+- `vetting.json`, `review.json` y `decision.json` llevan la justificación del agente (`rationale` o `reason`), pero el veredicto lo calcula la tool con una regla del dominio (ver Decisiones de los agentes).
 
 **Regla del Director para `decision.json`**
 
@@ -222,7 +230,19 @@ Cuando el caso llega a Vetting y Review, `final` sale de esta regla y no de un p
 - `false_positive` si `vetting.verdict = false_positive`.
 - `inconclusive` en cualquier otro caso.
 
-Los cortes anteriores (`no_signal` después de Detection, `known` o `false_positive` después de Catalog) siguen como están en el prompt del Director.
+Los cortes anteriores (`no_signal` después de Detection, `known` o `false_positive` después de Catalog) siguen como están en el prompt del Director. En modo `explore`, Catalog corta con `known` si hay un planeta confirmado, un TOI o una CTOI con `period_match`, y con `false_positive` si el match con `period_match` es un falso positivo conocido (`FP`, `FA`) o una binaria eclipsante. Un TOI o una CTOI con otro período no corta: el caso sigue y la nota queda en `catalog.json`. En modo `eval`, Catalog no corta nunca.
+
+**Decisiones de los agentes**
+
+Mismo patrón que `select-peak`: cada contexto con criterio tiene una tool que calcula el veredicto con una regla del dominio y recibe del agente solo la justificación.
+
+| Contexto | Tool | Regla |
+| --- | --- | --- |
+| `vetting` | `conclude --rationale` | Combina las corridas de cada prueba (todas `pass` es `pass`, todas `fail` es `fail`, cualquier mezcla es `marginal`). Una prueba `hard` en `fail` da `false_positive`; una `soft` en `fail` o cualquier `marginal` da `inconclusive`; todo en `pass` da `candidate`. Las pruebas `info` no entran |
+| `review` | `conclude --rationale` | Período independiente dentro de `period_tolerance` y profundidad dentro de `depth_tolerance` de `signal.json` da `reproduced`; período dentro de la tolerancia con otra profundidad, o un alias entero del período, da `partial`; si no, `not_reproduced` |
+| `direction` | `decide --mode --reason` | La regla del Director de arriba; `next_step` sale de una plantilla de `mission.yaml` |
+
+Las tres tools rechazan (exit 2) archivos calculados sobre otro `signal.json`: comparan el hash de `inputs` con el `signal.json` actual.
 
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.
 - Un agente nunca edita a mano el JSON de otro contexto.
@@ -252,16 +272,19 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 | `acquisition` | `fetch-lightcurves` | Baja las curvas SPOC de 2 minutos de los sectores elegidos por la regla de `mission.yaml` y extrae `PDCSAP_FLUX`, descartando puntos con NaN o `QUALITY` distinto de 0 | astroquery, astropy |
 | `acquisition` | `fetch-star` | Trae parámetros de la estrella y sus vecinas cercanas | astroquery |
 | `preparation` | `clean` | Normaliza por sector, quita la tendencia, recorta outliers hacia arriba y une sectores | wotan |
-| `detection` | `search-period` | Busca períodos con BLS y escribe en `search.json` los mejores picos con su SNR; descarta los de profundidad no positiva y los armónicos, dejándolos anotados | astropy |
+| `detection` | `search-period` | Busca períodos con BLS y escribe en `search.json` los mejores picos con su SNR y su SDE; descarta los de profundidad no positiva y los armónicos, dejándolos anotados. Repite la búsqueda sobre la curva invertida y guarda su SNR máximo | astropy |
 | `detection` | `select-peak` | Registra la elección del Buscador: escribe `signal.json` desde `search.json` con `--peak <id>` o `--no-signal`. Rechaza un pico bajo `snr_min` o `min_transits`. Acepta `--reason`, que va a `log.jsonl` | (propia) |
 | `detection` | `fold` | Pliega la curva en un pico de `search.json` o en un período dado; guarda datos, figura y un resumen numérico que también imprime por stdout | astropy, matplotlib |
-| `modeling` | `fit-transit` | Ajusta un modelo de tránsito con incertidumbres; informa la convergencia (tiempo de autocorrelación y fracción de aceptación) | batman, emcee |
-| `catalog` | `crossmatch` | Busca el TIC en NASA Exoplanet Archive y en las listas TOI y CTOI de ExoFOP | astroquery |
-| `vetting` | `run-gates` | Corre las diez pruebas de descarte y escribe cada resultado | (portado) |
-| `vetting` | `run-gate` | Repite una sola prueba con otros parámetros | (portado) |
-| `review` | `reproduce` | Rehace limpieza y búsqueda con otro método, sin leer `signal.json` | transitleastsquares |
-| `followup` | `ephemeris` | Calcula los próximos tránsitos con su incertidumbre | astropy |
-| `reporting` | `render-report` | Arma `report.md` desde el expediente con una plantilla | jinja2 |
+| `modeling` | `fit-transit` | Ajusta un modelo de tránsito con jitter. `--mode quick` (por defecto) usa mínimos cuadrados y tarda segundos; `--mode mcmc` usa emcee, informa la convergencia y solo corre si `vetting.json` dice `candidate` | batman, scipy, emcee |
+| `catalog` | `crossmatch` | Busca el TIC en `pscomppars` y en la lista TOI del NASA Exoplanet Archive (TAP) y en las CTOI de ExoFOP; marca qué matches coinciden en período con `signal.json` | urllib |
+| `vetting` | `run-gates` | Corre las diez pruebas de descarte y escribe una corrida de cada una en `vetting/runs.json` | (portado) |
+| `vetting` | `run-gate` | Repite una prueba con otros parámetros de medición (`--duration-scale`, `--window-durations`, dentro de los rangos de `mission.yaml`); los umbrales no se tocan | (portado) |
+| `vetting` | `conclude` | Combina las corridas, calcula el veredicto y escribe `vetting.json` con el `--rationale` del agente | (propia) |
+| `review` | `reproduce` | Rehace limpieza (otro detrending) y búsqueda (TLS) desde las tablas por sector, sin leer `signal.json` | wotan, transitleastsquares |
+| `review` | `conclude` | Compara `review/reproduction.json` con `signal.json`, calcula el veredicto y escribe `review.json` con el `--rationale` del agente | (propia) |
+| `followup` | `ephemeris` | Calcula los próximos tránsitos con su incertidumbre desde `model.json`, a partir de `--start` (por defecto, hoy en UTC) | astropy |
+| `direction` | `decide` | Calcula `final` con la regla del Director y escribe `decision.json` con el `--reason` del agente | (propia) |
+| `reporting` | `render-report` | Arma `report.md` desde el expediente con una plantilla; acepta un `--summary` del agente | jinja2 |
 
 **`mission.yaml`**
 
@@ -279,26 +302,35 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 **Notas de implementación de M1**
 
 - `fetch-lightcurves` deja los FITS crudos en `lightcurve/` y, por sector, una tabla `sNNNN.parquet` con `PDCSAP_FLUX` sin NaN ni `QUALITY` distinto de 0. `clean` lee esas tablas a través de `lightcurve/manifest.json` y nunca los FITS.
-- `search-period` examina como máximo 4 × `n_peaks` picos distintos, para que la lista de descartados no crezca sin límite en una estrella sin señal. Es una constante del código (`EXAMINE_FACTOR`), no un parámetro de la misión.
+- `search-period` examina como máximo `examine_factor` × `n_peaks` picos distintos (4 × 5), para que la lista de descartados no crezca sin límite en una estrella sin señal.
 - `peak_separation: 0.02`: con un sector y duraciones de 6 h, los lóbulos laterales del BLS llegan a ~1% del período.
-- `fold` escribe, además de los datos y la figura, `folds/<tag>.json` validado con el mismo resumen que imprime por stdout. Las profundidades se miden tránsito por tránsito: con errores punto a punto, WASP-18 b mostraba una diferencia par/impar espuria de 5,9σ (1,6σ con dispersión entre tránsitos). La prueba 5 de M2 debería usar el mismo criterio.
-- `fit-transit` corre por defecto 8000 pasos con 2000 de burn-in: con 3000 y 1000, la cadena de WASP-18 b no llegaba a 50 τ (τ_max ≈ 74); con 8000 converge (τ_max ≈ 103) en unos 3,5 minutos.
+- `fold` escribe, además de los datos y la figura, `folds/<tag>.json` validado con el mismo resumen que imprime por stdout. Las profundidades se miden tránsito por tránsito: con errores punto a punto, WASP-18 b mostraba una diferencia par/impar espuria de 5,9σ (1,6σ con dispersión entre tránsitos). El error de los pares sale solo de la dispersión entre tránsitos pares, y el de los impares solo de los impares: mezclar los dos grupos inflaría el error de una binaria con eclipses alternados y escondería la diferencia. La medición vive en `shared/kernel/transits.py` y la usan `fold` y la prueba 5.
+- `fit-transit --mode mcmc` corre por defecto 8000 pasos con 2000 de burn-in: con 3000 y 1000, la cadena de WASP-18 b no llegaba a 50 τ (τ_max ≈ 74); con 8000 converge (τ_max ≈ 103) en unos 3,5 minutos. Por eso el modo por defecto es `quick` y el MCMC queda para los candidatos que pasaron vetting.
+- Las duraciones que prueba BLS se limitan por período a lo físicamente posible: `T_max(P) = (P/π)·asin(min(1, (1 + rp_rs_max)·R*/a))`, con `R*/a = (3π / (G ρ_min P²))^(1/3)` por la tercera ley de Kepler (G y la densidad solar salen de `astropy.constants`) y `ρ_min = stellar_density_min_solar` de `mission.yaml`, una envolvente para cualquier estrella de la misión. No se usa `star.json`, para que la búsqueda no dependa del orden de las tools ni de los errores del TIC.
+- Los adaptadores de MAST (y los de catálogos) reintentan los errores transitorios (conexión, timeout, HTTP 5xx) con backoff exponencial (`retry.attempts`, `retry.backoff_s`); agotados los intentos, la tool sale con exit 3.
 - batman 2.5.3 importa `distutils`, que Python 3.12 ya no trae; `setuptools` aporta el reemplazo.
 
 **Las diez pruebas de descarte**
 
-Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos.
+Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos. Los umbrales son los de la referencia salvo donde se indica, y viven en `mission.yaml` (`vetting.gates`) junto con la severidad de cada prueba.
 
-1. Duplicado en catálogos de planetas, TOI y CTOI.
-2. Cobertura en más de un sector.
-3. SNR combinado de BLS mayor o igual a 8.
-4. Predicción a ciegas dejando una época afuera.
-5. Consistencia de profundidad entre tránsitos pares e impares.
-6. Ausencia de eclipse secundario.
-7. Radio y duración físicamente plausibles.
-8. Centroide estable, para descartar una binaria de fondo.
-9. Coherencia tránsito a tránsito y estabilidad por jackknife.
-10. Guarda contra modulación por rotación de la estrella.
+| # | Id | Prueba | Severidad | Pasa si |
+| --- | --- | --- | --- | --- |
+| 1 | `catalog` | Duplicado en catálogos de planetas, TOI y CTOI | `info` | No hay match con `period_match` en `catalog.json`; si no hay `catalog.json` (modo eval), queda `marginal` con nota y no entra al veredicto |
+| 2 | `coverage` | Cobertura en más de un sector | `soft` | ≥ 2 sectores y ≥ 6 tránsitos con datos |
+| 3 | `snr` | SNR combinado de BLS | `soft` | SNR ≥ `snr_min` (8) y SNR > `inverted_snr_max` |
+| 4 | `holdout` | Predicción a ciegas dejando un sector afuera (la referencia lo llama época) | `soft` | Z mínimo ≥ 2 y Z medio ≥ 3,5 en los sectores retenidos |
+| 5 | `odd-even` | Profundidad de tránsitos pares contra impares | `hard` | Diferencia < 2,5σ, con el error de cada grupo calculado dentro del grupo |
+| 6 | `secondary` | Eclipse secundario en fase 0,5 | `hard` | Secundario no significativo (< 2,5σ), o significativo pero menor que el 30% del primario: una ocultación compatible con un planeta pasa con nota. Falla si es significativo y supera el 30% |
+| 7 | `plausibility` | Radio y duración físicamente plausibles | `hard` | Radio del planeta ≤ `planet_radius_max_rjup` (falla si el límite inferior del intervalo lo supera, `marginal` si el intervalo lo cruza) y duración / duración circular con b = 0 entre 0,2 y 2,2. Sin radio estelar en el TIC, decide solo la duración y la nota lo dice |
+| 8 | `centroid` | Centroide estable, para descartar una binaria de fondo | `hard` | Corrimiento en tránsito < 3σ y < 2,5″ |
+| 9 | `coherence` | Coherencia tránsito a tránsito y estabilidad por jackknife | `soft` | ≥ 70% de tránsitos positivos, SNR sin el tránsito más fuerte ≥ 6,5 y mediana por tránsito ≥ 0,55 de la profundidad |
+| 10 | `rotation` | Guarda contra modulación por rotación de la estrella | `soft` | Amplitud sinusoidal fuera de tránsito (en P, sus fracciones y la serie de 4 armónicos) < 0,32 de la profundidad en la curva limpia y < 3,5 en la cruda |
+
+- Con datos insuficientes para medir (pocos tránsitos, sin centroides, un solo sector en la prueba 4), la prueba queda `marginal` con nota: nunca falla por falta de datos.
+- En la referencia, el docstring de la prueba 6 dice "< 2,5σ o < 30% del primario", pero el código solo mira la significancia. Se sigue el docstring. El secundario se mide contra una base local alrededor de la fase 0,5, igual que el primario, para que la curva de fase de un Júpiter caliente no lo sesgue.
+- `planet_radius_max_rjup: 2.62` es el mayor `pl_radj` entre los planetas confirmados por tránsito del NASA Exoplanet Archive (Kepler-1979 b, `pscomppars` con `tran_flag=1`, consultado el 26 de noviembre de 2026). La referencia usa 18 R⊕ (unos 1,6 R♃), que descartaría Júpiter calientes inflados confirmados. La fuente y la consulta quedan junto al parámetro en `mission.yaml`.
+- `run-gate` solo cambia parámetros de medición; las pruebas 1, 2 y 7 no tienen y rechazan la repetición.
 
 **Skills**
 
@@ -532,7 +564,7 @@ Son seis hitos en orden; ninguno empieza sin que el anterior cumpla su criterio 
 | --- | --- | --- | --- |
 | M0 Scaffold | Estructura del repo, `shared/contracts`, test de arquitectura, CI, detector de secretos | `make test` pasa y el test de imports falla si un contexto importa a otro | No |
 | M1 Tools de señal | `fetch-lightcurves`, `fetch-star`, `clean`, `search-period`, `fold`, `fit-transit` | En local, `signal.json` de WASP-18 b con período dentro del 1% del catálogo | No |
-| M2 Tools de verificación | `crossmatch`, `run-gates`, `run-gate`, `reproduce`, `ephemeris`, `render-report` y controles sintéticos | Los controles negativos se rechazan y un script genera el expediente completo sin LLM | No |
+| M2 Tools de verificación | `crossmatch`, `run-gates`, `run-gate`, `conclude` (vetting y review), `reproduce`, `ephemeris`, `decide`, `render-report` y controles sintéticos | Los controles negativos se rechazan; un script (`make dossier`) genera el expediente completo de WASP-18 b sin LLM y en modo `eval` termina en `candidate`. Un planeta confirmado nunca sale `false_positive` | No |
 | M3 Esqueleto de agentes | Los seis `agent.md`, las skills, `environment.yaml` y `runtime/` con presupuesto | `make hello` corre en Managed Agents y baja el expediente de WASP-18 b | Sí |
 | M4 Evals | `build_set.py`, runner, scorer y modo ciego | `make eval-dev` produce la tabla de métricas con versiones de agente | Sí |
 | M5 Iteración | Ajuste de prompts y skills contra el set de desarrollo | Objetivos de la sección Evals cumplidos en el set reservado | Sí |
@@ -559,34 +591,37 @@ El riesgo principal es engañarse con los evals; el resto son detalles de una pl
 | Costo por estrella desconocido hasta M3 | Presupuesto por sesión desde la primera corrida |
 | Arranque lento del sandbox por los paquetes científicos | Medirlo en M3 y fijar versiones |
 | Cobertura: con `author: SPOC` y `exptime_s: 120` solo se procesan estrellas con curva de 2 minutos; las que solo están en imágenes completas (FFI) quedan afuera | Limitación aceptada para la v0.1; el set de evals de M4 se arma solo con estrellas que la tengan |
+| Un segundo planeta real puede quedar oculto como armónico del primero: si su período cae dentro de `harmonic_tolerance` de una razón entera, sale de los picos elegibles. Las resonancias entre planetas son comunes, así que no es solo azar | Limitación de la v0.1. El set de evals usa estrellas con un solo planeta conocido; la búsqueda iterativa enmascarando tránsitos queda para la v0.2 |
+| Ruido rojo: el ajuste solo tiene jitter (ruido blanco extra), así que los errores pueden quedar subestimados en estrellas con ruido correlacionado | Limitación de la v0.1, anotada en el reporte |
+| Órbitas excéntricas: la prueba 6 busca el secundario solo en fase 0,5 | Limitación de la v0.1 |
+| Tiempos de `ephemeris.json`: BTJD es baricéntrico; la conversión a UTC no corrige por la posición del observador (hasta unos 8 minutos) | Anotado en el reporte |
 
 **A confirmar al implementar**
 
 - Esquema exacto del bloque `multiagent` en el frontmatter de `agent.md`.
 - Lista completa de hosts que usa astroquery para bajar datos de TESS.
-- Nombre exacto de la columna de disposición en la lista TOI de ExoFOP y sus valores.
+- [x] Nombre exacto de la columna de disposición en la lista TOI y sus valores: `tfopwg_disp` en la tabla `toi` del NASA Exoplanet Archive (TAP), con `APC`, `CP`, `FA`, `FP`, `KP`, `PC` o vacío (consultado el 26 de noviembre de 2026). Las CTOI salen del JSON de ExoFOP (`target.php?id=<tic>&json`, clave `ctois`).
 - [x] Identificador TIC de WASP-18, resuelto por catálogo y no escrito a mano: sale de la tabla `pscomppars` del NASA Exoplanet Archive y queda, con la consulta y la fecha, en `tests/fixtures/wasp18/reference.json`.
 
 **Preguntas abiertas**
 
 - [x] Licencia del repo: MIT a nombre de KuramaBiju, igual que la referencia de la que se portan las pruebas.
 - [x] Repo nuevo `astronomy-hub`, no una carpeta dentro de agency-hub.
-- [ ] (M2) Con qué tool registran su decisión el Abogado del diablo y el Revisor (veredicto) y el Director (`decision.json`). Resuelto para detection en M1: el Buscador usa `select-peak`.
+- [x] Con qué tool registran su decisión el Abogado del diablo y el Revisor (veredicto) y el Director (`decision.json`): `conclude` en vetting y en review, `decide` en direction, con el mismo patrón que `select-peak` (ver Decisiones de los agentes).
+- [ ] (M3) Con qué tool registra el Bibliotecario la literatura que encuentra en la web. En M2 `crossmatch` deja `literature` vacía. Lo más probable: `add-literature`, con el mismo patrón que `select-peak`.
 - [ ] Prompts en inglés o en español. Propuesta: inglés.
 - [ ] Qué estrellas explora el Director después de los evals. Propuesta: enanas cercanas de tipo K y M, como los repos de referencia.
 - [ ] Usar o no Outcomes de la plataforma para evaluar el reporte del Redactor con una rúbrica.
 - [ ] Objetivos definitivos de los evals, después de la primera corrida.
 
-**Dudas para M2**
+**Dudas de M1, resueltas en M2**
 
-Salieron de M1 y hay que resolverlas en M2, no antes.
-
-1. **El SNR de ruido blanco no alcanza como prueba.** En una curva invertida, donde cualquier bajón es ruido, BLS encuentra cajas de 6 h y unos 200 ppm con SNR entre 11 y 17, por encima de `snr_min`. Hay que comparar con la definición de la prueba 3 del repo de referencia (puede usar SDE o ruido rojo).
-2. **Un segundo planeta real puede quedar oculto como armónico.** Si su período cae dentro de `harmonic_tolerance` de una razón entera del pico principal, sale de los picos elegibles. La probabilidad por azar ronda el 4%. Se suma el tope de 4 × `n_peaks` picos examinados.
-3. **Curva de fase de los Júpiter calientes.** WASP-18 b muestra unos 200 ppm de profundidad a 1-3 h del tránsito por su curva de fase. La prueba 6 (ausencia de eclipse secundario) puede descartar planetas reales de este tipo.
-4. **Errores del ajuste posiblemente subestimados.** El modelo no tiene término de jitter ni de ruido rojo; el período ajustado de WASP-18 b queda a 2,5σ del de catálogo.
-5. **Cómo registran su decisión** el Abogado del diablo, el Revisor y el Director (ver la pregunta abierta de arriba).
-6. **Tiempo por estrella y caídas de MAST.** Una estrella tarda unos 4 minutos, casi todo del ajuste; importa para el presupuesto de M4. Durante M1, MAST estuvo caído cerca de una hora: las tools salen con exit 3 y quizás `runtime/` tenga que reintentar.
+1. **SNR de ruido blanco.** La prueba 3 de la referencia usa la misma definición. Se agrega el piso de ruido de la curva invertida (`inverted_snr_max`) y se limitan las duraciones por período con la tercera ley de Kepler.
+2. **Segundo planeta oculto como armónico.** No se resuelve en la v0.1: queda en Riesgos.
+3. **Curva de fase de los Júpiter calientes.** La prueba 6 solo falla si el secundario es significativo y supera el 30% del primario; una ocultación compatible con un planeta pasa con nota.
+4. **Errores del ajuste.** Se agrega un término de jitter; el ruido rojo queda fuera de la v0.1.
+5. **Cómo registran su decisión los agentes.** `conclude` y `decide` (ver Decisiones de los agentes).
+6. **Tiempo por estrella y caídas de MAST.** `fit-transit` tiene un modo `quick` por defecto y el MCMC corre solo sobre candidatos que pasaron vetting. Los adaptadores reintentan los errores transitorios con backoff.
 
 ## Referencias
 
