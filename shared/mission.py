@@ -54,6 +54,7 @@ class DetectionConfig(ContractModel):
     bin_minutes: PositiveFloat
     frequency_factor: PositiveFloat
     n_peaks: PositiveInt
+    examine_factor: PositiveInt
     peak_separation: PositiveFloat
     harmonic_max_integer: Annotated[int, Field(ge=2)]
     harmonic_tolerance: PositiveFloat

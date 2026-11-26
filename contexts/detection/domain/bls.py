@@ -11,10 +11,6 @@ from fractions import Fraction
 import numpy as np
 from astropy.timeseries import BoxLeastSquares
 
-# Distinct peaks examined at most, as a multiple of n_peaks, so the list of
-# discarded peaks stays short even for a star without any signal.
-EXAMINE_FACTOR = 4
-
 
 class SearchError(ValueError):
     """The light curve cannot be searched with the given parameters."""
@@ -28,6 +24,7 @@ class SearchParams:
     bin_minutes: float
     frequency_factor: float
     n_peaks: int
+    examine_factor: int  # distinct peaks examined at most, as a multiple of n_peaks
     peak_separation: float
     harmonic_max_integer: int
     harmonic_tolerance: float
@@ -120,7 +117,7 @@ def triage(
     seen: list[float] = []
     examined = 0
     for candidate, transit_time in ranked:
-        if len(peaks) >= params.n_peaks or examined >= EXAMINE_FACTOR * params.n_peaks:
+        if len(peaks) >= params.n_peaks or examined >= params.examine_factor * params.n_peaks:
             break
         period = candidate.period_days
         if any(abs(period - p) / p <= params.peak_separation for p in seen):

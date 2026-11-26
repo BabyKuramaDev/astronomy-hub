@@ -25,6 +25,7 @@ def params_from(config: DetectionConfig) -> SearchParams:
         bin_minutes=config.bin_minutes,
         frequency_factor=config.frequency_factor,
         n_peaks=config.n_peaks,
+        examine_factor=config.examine_factor,
         peak_separation=config.peak_separation,
         harmonic_max_integer=config.harmonic_max_integer,
         harmonic_tolerance=config.harmonic_tolerance,
