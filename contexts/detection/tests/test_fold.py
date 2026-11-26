@@ -28,6 +28,27 @@ def test_fold_measures_depth_and_scatter() -> None:
     _, sigma = result.odd_even_difference
     assert sigma is not None
     assert sigma < 3.0
+    assert result.odd.n_transits + result.even.n_transits == 12
+
+
+def test_odd_even_error_includes_transit_to_transit_scatter() -> None:
+    """Depths that drift between sectors must not look like a significant odd/even split."""
+    time, flux, _ = light_curve(days=27.0, transit=TRANSIT, noise_ppm=200.0, seed=7)
+    rng = np.random.default_rng(0)
+    epochs = np.rint((time - TRANSIT.epoch_btjd) / TRANSIT.period_days).astype(int)
+    scale = 1.0 + rng.normal(0.0, 0.05, epochs.max() - epochs.min() + 1)[epochs - epochs.min()]
+    flux = 1.0 - (1.0 - flux) * np.where(box_transit(time, TRANSIT) < 1.0, scale, 1.0)
+    result = fold(
+        time,
+        flux,
+        period_days=TRANSIT.period_days,
+        epoch_btjd=TRANSIT.epoch_btjd,
+        duration_hours=TRANSIT.duration_hours,
+        **KW,
+    )
+    core_points = 0.5 * TRANSIT.duration_hours * 30  # 2-minute cadence, central half
+    white = 200.0 / np.sqrt(result.odd.n_transits * core_points)
+    assert result.odd.err_ppm > 2.5 * white
 
 
 def test_fold_flags_odd_even_difference() -> None:

@@ -79,19 +79,24 @@ def bin_lightcurve(
 def harmonic_ratio(
     period: float, reference: float, max_integer: int, tol: float
 ) -> Fraction | None:
-    """n/m (n, m <= max_integer, not 1/1) with period ~ reference * n/m, or None."""
+    """The ratio period / reference as an alias of the reference peak, or None.
+
+    Candidates are any integer multiple k or submultiple 1/k (a multiple covers a
+    subset of the same transits), and fractions n/m with n, m <= max_integer.
+    1/1 is never a harmonic. The closest candidate within the relative tolerance wins.
+    """
     value = period / reference
-    best: Fraction | None = None
-    for n in range(1, max_integer + 1):
-        for m in range(1, max_integer + 1):
-            if n == m or math.gcd(n, m) != 1:
-                continue
-            frac = Fraction(n, m)
-            if abs(value / float(frac) - 1.0) <= tol and (
-                best is None or abs(value - float(frac)) < abs(value - float(best))
-            ):
-                best = frac
-    return best
+    candidates = {
+        Fraction(n, m)
+        for n in range(1, max_integer + 1)
+        for m in range(1, max_integer + 1)
+        if n != m
+    }
+    k = round(value) if value >= 1 else round(1 / value)
+    if k > 1:
+        candidates.add(Fraction(k) if value >= 1 else Fraction(1, k))
+    matches = [f for f in candidates if abs(value / float(f) - 1.0) <= tol]
+    return min(matches, key=lambda f: (abs(value / float(f) - 1.0), f), default=None)
 
 
 def first_epoch(epoch: float, period: float, t_start: float) -> float:

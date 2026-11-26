@@ -1,6 +1,7 @@
 """Fold a light curve on a period and summarize it numerically for a text reader."""
 
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
@@ -23,15 +24,24 @@ class Depth:
 
 
 @dataclass(frozen=True)
+class TransitDepths:
+    """Mean depth over individual transits; the error comes from their scatter."""
+
+    value_ppm: float | None
+    err_ppm: float | None
+    n_transits: int
+
+
+@dataclass(frozen=True)
 class FoldResult:
     phase_hours: np.ndarray  # points inside the window, for the data file and figure
     flux: np.ndarray
     epoch_index: np.ndarray
     n_points: int
     n_transits_covered: int
-    in_transit: Depth
-    odd: Depth
-    even: Depth
+    in_transit: TransitDepths
+    odd: TransitDepths
+    even: TransitDepths
     oot_scatter_ppm: float | None
     bins: tuple[Bin, ...]
 
@@ -58,6 +68,22 @@ def _depth(flux: np.ndarray, baseline: float, scatter: float | None) -> Depth:
     return Depth(float((baseline - flux.mean()) * 1e6), err, int(flux.size))
 
 
+def transit_depths(
+    flux: np.ndarray, epoch_index: np.ndarray, baseline: float, min_points: int
+) -> TransitDepths:
+    """Depth of each transit with at least min_points, then mean and standard error."""
+    depths = []
+    for epoch in np.unique(epoch_index):
+        members = flux[epoch_index == epoch]
+        if members.size >= min_points:
+            depths.append((baseline - members.mean()) * 1e6)
+    if not depths:
+        return TransitDepths(None, None, 0)
+    values = np.array(depths)
+    err = float(values.std(ddof=1) / np.sqrt(values.size)) if values.size >= 2 else None
+    return TransitDepths(float(values.mean()), err, int(values.size))
+
+
 def fold(
     time: np.ndarray,
     flux: np.ndarray,
@@ -67,6 +93,7 @@ def fold(
     duration_hours: float,
     window_durations: float,
     n_bins: int,
+    min_points: int = 3,
 ) -> FoldResult:
     duration = duration_hours / 24.0
     phase = (time - epoch_btjd + 0.5 * period_days) % period_days - 0.5 * period_days
@@ -80,6 +107,7 @@ def fold(
     core = np.abs(phase) < 0.25 * duration  # central half: depth without ingress/egress
     odd = core & (epoch_index % 2 == 1)
     even = core & (epoch_index % 2 == 0)
+    per_transit = partial(transit_depths, baseline=baseline, min_points=min_points)
 
     half_window = window_durations * duration
     edges = np.linspace(-half_window, half_window, n_bins + 1)
@@ -104,9 +132,9 @@ def fold(
         epoch_index=epoch_index[window],
         n_points=int(time.size),
         n_transits_covered=int(np.unique(epoch_index[in_transit]).size),
-        in_transit=_depth(flux[core], baseline, scatter),
-        odd=_depth(flux[odd], baseline, scatter),
-        even=_depth(flux[even], baseline, scatter),
+        in_transit=per_transit(flux[core], epoch_index[core]),
+        odd=per_transit(flux[odd], epoch_index[odd]),
+        even=per_transit(flux[even], epoch_index[even]),
         oot_scatter_ppm=scatter * 1e6 if scatter is not None else None,
         bins=tuple(bins),
     )

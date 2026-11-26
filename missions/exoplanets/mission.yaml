@@ -32,7 +32,8 @@ detection:
   n_peaks: 5
   peak_separation: 0.02          # relative distance between distinct peaks (BLS side lobes of
                                  # one sector with 6 h durations reach about 1%)
-  harmonic_max_integer: 12       # ratios n/m with n, m <= 12 (BLS aliases such as 7/2, 8/3)
+  harmonic_max_integer: 12       # ratios n/m with n, m <= 12 (aliases such as 7/2, 8/3);
+                                 # integer multiples and submultiples are always checked
   harmonic_tolerance: 0.002      # relative tolerance for a harmonic ratio
   snr_min: 8.0
   min_transits: 3

@@ -15,13 +15,15 @@ class FoldBin(ContractModel):
 
 
 class OddEven(ContractModel):
+    """Mean depth of odd and even transits; errors come from transit-to-transit scatter."""
+
     depth_odd_ppm: float | None
     depth_odd_err_ppm: NonNegativeFloat | None
     depth_even_ppm: float | None
     depth_even_err_ppm: NonNegativeFloat | None
     difference_ppm: float | None
     difference_sigma: NonNegativeFloat | None
-    n_odd: NonNegativeInt
+    n_odd: NonNegativeInt  # number of odd transits measured
     n_even: NonNegativeInt
 
 

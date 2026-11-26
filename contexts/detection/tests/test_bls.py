@@ -36,6 +36,8 @@ def test_bin_lightcurve_averages() -> None:
         (1.1725, 2.345, Fraction(1, 2)),
         (8.2075, 2.345, Fraction(7, 2)),
         (6.2533, 2.345, Fraction(8, 3)),
+        (2.345 * 14, 2.345, Fraction(14)),
+        (2.345 / 15, 2.345, Fraction(1, 15)),
         (2.345, 2.345, None),
         (3.3, 2.345, None),
     ],

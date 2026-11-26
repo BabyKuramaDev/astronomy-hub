@@ -53,7 +53,14 @@ def test_search_select_fold(
     folded = json.loads(capsys.readouterr().out)
     assert folded["depth_ppm"] == pytest.approx(3000.0, rel=0.15)
     assert len(folded["bins"]["rows"]) == 15
-    assert set(folded["odd_even"]) == {"odd_ppm", "even_ppm", "difference_ppm", "difference_sigma"}
+    assert set(folded["odd_even"]) == {
+        "odd_ppm",
+        "even_ppm",
+        "difference_ppm",
+        "difference_sigma",
+        "n_odd",
+        "n_even",
+    }
     fold_json = next(f for f in folded["files"] if f.endswith(".json"))
     fold = Dossier(dossier).read_envelope(fold_json, FoldFile)
     assert fold.data.peak_id == "p1"
