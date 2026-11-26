@@ -127,11 +127,11 @@ def test_period_within_one_percent_of_catalog(run: tuple[Path, dict[str, Any]]) 
     assert signal.period_days == pytest.approx(REF["period_days"], rel=0.01)
 
 
-def test_review_reproduces_and_mcmc_refines(run: tuple[Path, dict[str, Any]]) -> None:
+def test_review_reproduces_and_eval_skips_the_mcmc(run: tuple[Path, dict[str, Any]]) -> None:
     root, _ = run
     assert Dossier(root).read_envelope("review.json", ReviewFile).data.verdict == "reproduced"
     model = Dossier(root).read_envelope("model.json", ModelFile).data
-    assert model.method == "mcmc"
+    assert model.method == "quick"  # eval metrics never use the MCMC
     assert model.planet_radius_rearth is not None
 
 
@@ -149,7 +149,7 @@ def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
     ]
     assert [e.tool for e in entries] == [
         "clean", "search-period", "select-peak", "fold", "fit-transit", "run-gates", "conclude",
-        "fit-transit", "reproduce", "conclude", "decide", "ephemeris", "render-report",
+        "reproduce", "conclude", "decide", "ephemeris", "render-report",
     ]  # fmt: skip
     assert all(e.exit_code == 0 for e in entries)
     assert entries[2].reason

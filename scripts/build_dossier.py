@@ -7,6 +7,7 @@ Each agent's choice is replaced by a fixed rule, so the run is deterministic:
 - Director (explore): stop after Catalog when catalog.json says the signal is known.
 - Devil's advocate: run-gates and conclude, no reruns. A false_positive skips the MCMC
   and the review: that verdict decides on its own.
+- Modeler: the MCMC only runs on a candidate in explore mode; eval metrics never use it.
 - Reviewer: reproduce and conclude.
 - Director: decide; in eval mode Catalog runs after the decision and never enters it.
 - Writer: ephemeris and render-report.
@@ -123,7 +124,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         + (f"gates not passing: {', '.join(failing)}." if failing else "every gate passes."),
     )
     if vetting["verdict"] != "false_positive":
-        if vetting["verdict"] == "candidate":
+        if vetting["verdict"] == "candidate" and args.mode == "explore":
             run.tool("modeling", "fit-transit", "--mode", "mcmc", *args.mcmc)
         run.tool("review", "reproduce")
         run.tool(
