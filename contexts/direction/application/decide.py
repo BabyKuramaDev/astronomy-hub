@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from contexts.direction.domain.decision import DecisionError, Evidence, decide
+from contexts.direction.domain.decision import KNOWN, KNOWN_FALSE, DecisionError, Evidence, decide
 from shared.contracts import CatalogFile, DecisionData, ReviewFile, SignalFile, VettingFile
 from shared.mission import DirectionConfig
 from shared.toolkit.dossier import Dossier
@@ -36,12 +36,15 @@ class Decide:
         if not reason.strip():
             raise InvalidInputError("--reason must not be empty")
         signal = self.dossier.read_envelope(SIGNAL, SignalFile).data
+        # Read only what the rule needs, in its order, so files left over from another
+        # run are never consulted. Eval mode is blind: catalog.json is never read.
         catalog = vetting = review = None
         if signal.detected:
-            # Eval mode is blind: catalog.json is never read, even if it exists.
             catalog = self._read(CATALOG, CatalogFile) if mode == "explore" else None
-            vetting = self._read(VETTING, VettingFile)
-            review = self._read(REVIEW, ReviewFile)
+            if catalog is None or catalog.status not in KNOWN | KNOWN_FALSE:
+                vetting = self._read(VETTING, VettingFile)
+                if vetting is not None and vetting.verdict != "false_positive":
+                    review = self._read(REVIEW, ReviewFile)
         evidence = Evidence(
             mode=mode,
             detected=signal.detected,

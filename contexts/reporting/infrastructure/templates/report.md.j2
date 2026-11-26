@@ -139,6 +139,12 @@ From `ephemeris.json` (model `{{ ephemeris.model_method }}`), starting {{ epheme
 - A second companion whose period is an integer ratio of this one can hide as a harmonic.
 - Only SPOC 2-minute light curves of the selected sectors are used.
 
+{% if stale -%}
+## Left out
+
+These files were computed on another `signal.json` (an earlier run) and are not part of this report: {% for f in stale %}`{{ f }}`{{ ", " if not loop.last else "." }}{% endfor %}
+
+{% endif -%}
 ## Provenance
 
 | File | Produced by | Version | Created (UTC) |

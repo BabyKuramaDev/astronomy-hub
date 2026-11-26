@@ -69,3 +69,30 @@ def test_report_starts_with_the_verdict(tmp_path: Path, capsys: pytest.CaptureFi
 def test_report_needs_a_decision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert run(tmp_path) == 2
     assert "run decide before render-report" in capsys.readouterr().err
+
+
+def test_files_of_another_signal_are_left_out(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from shared.contracts import Gate, VettingData
+
+    root = tmp_path / "exoplanets" / str(TIC)
+    write(root)
+    reader = Dossier(root)
+    reader.record_read("signal.json")
+    gate = Gate(id="snr", status="pass", severity="soft", value=1.0, threshold=1.0, note="",
+                n_runs=1)  # fmt: skip
+    vetting = VettingData(gates=[gate], verdict="candidate", rationale="old run")
+    reader.write_envelope(
+        "vetting.json", meta(Context.VETTING, "conclude").envelope(vetting, reader.reads)
+    )
+    signal = root / "signal.json"
+    signal.write_text(
+        signal.read_text().replace('"sectors": [\n      3\n    ]', '"sectors": [\n      4\n    ]')
+    )
+    assert run(tmp_path) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["sections_stale"] == ["vetting.json"]
+    text = (root / "report.md").read_text()
+    assert "old run" not in text
+    assert "## Left out" in text

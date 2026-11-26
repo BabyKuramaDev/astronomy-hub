@@ -12,6 +12,7 @@ from shared.toolkit.meta import ToolMeta
 
 REPORT = "report.md"
 DECISION = "decision.json"
+SIGNAL = "signal.json"
 SECTIONS = {
     "signal": "signal.json",
     "search": "search.json",
@@ -38,12 +39,18 @@ class RenderReport:
         decision = self.dossier.read_envelope(DECISION, DecisionFile)
         envelopes = {DECISION: decision}
         context: dict[str, Any] = {}
+        stale = []
         for name, rel in SECTIONS.items():
-            if self.dossier.exists(rel):
-                envelopes[rel] = self.dossier.read_envelope(rel, CONTRACTS[rel])
-                context[name] = envelopes[rel].data
-            else:
-                context[name] = None
+            context[name] = None
+            if not self.dossier.exists(rel):
+                continue
+            env = self.dossier.read_envelope(rel, CONTRACTS[rel])
+            # A file computed on another signal.json belongs to another run: left out.
+            if SIGNAL in env.inputs and self.dossier.stale_inputs(env, (SIGNAL,)):
+                stale.append(rel)
+                continue
+            envelopes[rel] = env
+            context[name] = env.data
         provenance = [
             {
                 "file": rel,
@@ -62,13 +69,17 @@ class RenderReport:
                 "verdict_text": VERDICT_TEXT[decision.data.final],
                 "summary": (summary or "").strip(),
                 "provenance": provenance,
+                "stale": stale,
             }
         )
         self.dossier.write_bytes(REPORT, text.encode("utf-8"))
         return {
             "tic_id": self.meta.tic_id,
             "final": decision.data.final,
-            "sections_missing": [rel for name, rel in SECTIONS.items() if context[name] is None],
+            "sections_missing": [
+                rel for name, rel in SECTIONS.items() if context[name] is None and rel not in stale
+            ],
+            "sections_stale": stale,
             "lines": text.count("\n"),
             "file": REPORT,
         }

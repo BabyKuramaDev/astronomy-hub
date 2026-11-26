@@ -137,3 +137,24 @@ def test_no_signal(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     )
     assert run(tmp_path, "explore") == 0
     assert json.loads(capsys.readouterr().out)["final"] == "no_signal"
+
+
+def test_a_catalog_cut_ignores_leftover_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """vetting.json of an earlier run is stale, but explore cuts on the catalog first."""
+    dossier_with(root(tmp_path), catalog=None, vetting="candidate", review="reproduced")
+    signal = root(tmp_path) / "signal.json"
+    signal.write_text(signal.read_text().replace('"snr": 20.0', '"snr": 25.0'))
+    reader = Dossier(root(tmp_path))
+    reader.record_read("signal.json")
+    data = CatalogData(status="known_planet", matches=[], literature=[], notes=[])
+    reader.write_envelope(
+        "catalog.json", meta(Context.CATALOG, "crossmatch").envelope(data, reader.reads)
+    )
+    assert run(tmp_path, "explore") == 0
+    assert json.loads(capsys.readouterr().out)["final"] == "known"
+    assert (
+        "vetting.json"
+        not in Dossier(root(tmp_path)).read_envelope("decision.json", DecisionFile).inputs
+    )

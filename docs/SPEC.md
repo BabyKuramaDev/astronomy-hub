@@ -246,7 +246,7 @@ Las tres tools (y `fit-transit --mode mcmc`) rechazan (exit 2) archivos calculad
 
 `render-report` necesita `decision.json`, porque el reporte empieza por el veredicto: `decide` corre antes que `render-report` (el prompt del Director de M3 tiene que respetar ese orden). La plantilla (`contexts/reporting/infrastructure/templates/report.md.j2`) pone la fuente de cada número, dice qué archivos faltan y cierra con las limitaciones de la v0.1 y la procedencia de cada archivo.
 
-`decide` en modo `eval` no lee `catalog.json` aunque exista, y con `vetting.verdict = false_positive` no necesita `review.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
+`decide` lee solo lo que la regla necesita, en su orden: en modo `explore`, `catalog.json`; si no corta, `vetting.json`; si no es `false_positive`, `review.json`. En modo `eval` no lee `catalog.json` aunque exista. Así, archivos de una corrida anterior que la regla no necesita nunca se consultan. `render-report` deja afuera, con una nota, las secciones calculadas sobre otro `signal.json`. Los textos de `next_step` están en `mission.yaml` (`direction.next_steps`).
 
 - Los contratos viven en `shared/contracts/` como modelos pydantic. Cada tool valida al escribir y los evals validan al leer.
 - Un agente nunca edita a mano el JSON de otro contexto.
