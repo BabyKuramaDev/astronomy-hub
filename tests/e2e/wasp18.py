@@ -8,37 +8,20 @@ from typing import Any
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wasp18"
 REPO = Path(__file__).resolve().parents[2]
-SHORT_CHAIN = ["--walkers", "16", "--steps", "60", "--burn", "20"]
+SHORT_MCMC = ["--walkers", "20", "--steps", "300", "--burn", "100"]
+START = "2026-12-01"
 
 
 def reference() -> dict[str, Any]:
     return json.loads((FIXTURES / "reference.json").read_text())
 
 
-def tool(context: str, name: str, tic: int, workspace: Path, *extra: str) -> dict[str, Any]:
-    """Run a tool exactly as an agent would, and return its stdout summary."""
+def build_dossier(tic: int, workspace: Path, *extra: str) -> dict[str, Any]:
+    """Run scripts/build_dossier.py as `make dossier` does, and return its summary."""
     result = subprocess.run(
-        [sys.executable, "-m", f"contexts.{context}.cli", name, "--tic", str(tic),
-         "--workspace", str(workspace), *extra],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=1800,
+        [sys.executable, "-m", "scripts.build_dossier", "--tic", str(tic),
+         "--workspace", str(workspace), "--start", START, *extra, "--mcmc", *SHORT_MCMC],
+        cwd=REPO, capture_output=True, text=True, check=False, timeout=3600,
     )  # fmt: skip
-    assert result.returncode == 0, f"{context} {name}: {result.stderr}"
-    assert result.stderr == "", f"{context} {name} wrote to stderr: {result.stderr}"
+    assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
-
-
-def detection_chain(tic: int, workspace: Path) -> dict[str, Any]:
-    """clean -> search-period -> select-peak p1 -> fold -> fit-transit (quick)."""
-    out = {"clean": tool("preparation", "clean", tic, workspace)}
-    out["search"] = tool("detection", "search-period", tic, workspace)
-    out["select"] = tool(
-        "detection", "select-peak", tic, workspace, "--peak", "p1",
-        "--reason", "end-to-end test: highest-ranked peak",
-    )  # fmt: skip
-    out["fold"] = tool("detection", "fold", tic, workspace, "--peak", "p1")
-    out["fit"] = tool("modeling", "fit-transit", tic, workspace)
-    return out

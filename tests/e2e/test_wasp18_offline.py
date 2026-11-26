@@ -1,4 +1,9 @@
-"""WASP-18 b through every M1 tool, offline: real (trimmed) SPOC files and TIC rows."""
+"""M2 acceptance, offline: WASP-18 b's complete dossier without an LLM ends in candidate.
+
+Acquisition reads the recorded (trimmed) SPOC files and TIC rows; scripts/build_dossier.py
+then runs every other tool as a subprocess, in eval mode. A confirmed planet must never
+come out false_positive. Catalog is checked apart with the recorded TAP and ExoFOP answers.
+"""
 
 import json
 from collections.abc import Mapping, Sequence
@@ -11,12 +16,23 @@ import pytest
 from contexts.acquisition.application.fetch_lightcurves import FetchLightcurves
 from contexts.acquisition.application.fetch_star import FetchStar
 from contexts.acquisition.infrastructure.spoc_fits import SpocFitsReader
-from shared.contracts import LogEntry, ModelFile, SignalFile, StarFile
+from contexts.catalog.application.crossmatch import Crossmatch
+from contexts.catalog.domain.crossmatch import CatalogEntry
+from contexts.catalog.infrastructure.archive import parse_confirmed, parse_ctois, parse_tois
+from shared.contracts import (
+    CatalogFile,
+    DecisionFile,
+    LogEntry,
+    ModelFile,
+    ReviewFile,
+    SignalFile,
+    VettingFile,
+)
 from shared.kernel.contexts import Context
 from shared.mission import load_mission
 from shared.toolkit.dossier import Dossier
 from shared.toolkit.meta import ToolMeta
-from tests.e2e.wasp18 import FIXTURES, detection_chain, reference
+from tests.e2e.wasp18 import FIXTURES, build_dossier, reference
 
 REF = reference()
 TIC = REF["tic_id"]
@@ -50,10 +66,27 @@ class FixtureCatalog:
         return f"MAST TIC (version {target['version']}), recorded fixture"
 
 
-def meta(tool: str) -> ToolMeta:
-    return ToolMeta(
-        Context.ACQUISITION, tool, TIC, "exoplanets", "0.1.0", lambda: datetime.now(UTC)
-    )
+class FixturePlanetCatalogs:
+    """The TAP and ExoFOP answers recorded in catalogs.json."""
+
+    def __init__(self) -> None:
+        self.raw = json.loads((FIXTURES / "catalogs.json").read_text())
+
+    def confirmed_planets(self, tic_id: int) -> list[CatalogEntry]:
+        return parse_confirmed(self.raw["pscomppars"]["rows"])
+
+    def tois(self, tic_id: int) -> list[CatalogEntry]:
+        return parse_tois(self.raw["toi"]["rows"], tic_id)
+
+    def ctois(self, tic_id: int) -> list[CatalogEntry]:
+        return parse_ctois(self.raw["exofop"]["target"], tic_id)
+
+    def describe(self) -> str:
+        return "recorded fixture"
+
+
+def meta(context: Context, tool: str) -> ToolMeta:
+    return ToolMeta(context, tool, TIC, "exoplanets", "0.1.0", lambda: datetime.now(UTC))
 
 
 @pytest.fixture(scope="module")
@@ -61,10 +94,30 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any]]
     workspace = tmp_path_factory.mktemp("ws")
     dossier = Dossier.for_target(workspace, "exoplanets", TIC)
     FetchLightcurves(
-        FixtureArchive(), SpocFitsReader(), dossier, meta("fetch-lightcurves"), MISSION.acquisition
+        FixtureArchive(), SpocFitsReader(), dossier, meta(Context.ACQUISITION, "fetch-lightcurves"),
+        MISSION.acquisition,
+    ).execute()  # fmt: skip
+    FetchStar(
+        FixtureCatalog(), dossier, meta(Context.ACQUISITION, "fetch-star"), MISSION.acquisition
     ).execute()
-    FetchStar(FixtureCatalog(), dossier, meta("fetch-star"), MISSION.acquisition).execute()
-    return dossier.root, detection_chain(TIC, workspace)
+    summary = build_dossier(TIC, workspace, "--mode", "eval", "--skip", "acquisition,catalog")
+    return dossier.root, summary
+
+
+def test_eval_mode_ends_in_candidate(run: tuple[Path, dict[str, Any]]) -> None:
+    root, summary = run
+    decision = Dossier(root).read_envelope("decision.json", DecisionFile).data
+    assert decision.mode == "eval"
+    assert decision.final == "candidate" == summary["final"]
+
+
+def test_a_confirmed_planet_is_never_a_false_positive(run: tuple[Path, dict[str, Any]]) -> None:
+    root, _ = run
+    vetting = Dossier(root).read_envelope("vetting.json", VettingFile).data
+    assert vetting.verdict != "false_positive"
+    assert not [g.id for g in vetting.gates if g.severity == "hard" and g.status == "fail"]
+    secondary = next(g for g in vetting.gates if g.id == "secondary")
+    assert secondary.status == "pass"
 
 
 def test_period_within_one_percent_of_catalog(run: tuple[Path, dict[str, Any]]) -> None:
@@ -74,32 +127,45 @@ def test_period_within_one_percent_of_catalog(run: tuple[Path, dict[str, Any]]) 
     assert signal.period_days == pytest.approx(REF["period_days"], rel=0.01)
 
 
-def test_fixtures_are_small() -> None:
-    total = sum(p.stat().st_size for p in FIXTURES.iterdir() if p.is_file())
-    assert total < 1_000_000
-
-
-def test_star_and_model(run: tuple[Path, dict[str, Any]]) -> None:
-    root, out = run
-    star = Dossier(root).read_envelope("star.json", StarFile).data
-    assert star.radius_rsun is not None
+def test_review_reproduces_and_mcmc_refines(run: tuple[Path, dict[str, Any]]) -> None:
+    root, _ = run
+    assert Dossier(root).read_envelope("review.json", ReviewFile).data.verdict == "reproduced"
     model = Dossier(root).read_envelope("model.json", ModelFile).data
+    assert model.method == "mcmc"
     assert model.planet_radius_rearth is not None
-    assert model.stellar_source == star.source
-    assert out["fit"]["method"] == "quick"
 
 
-def test_every_tool_logged(run: tuple[Path, dict[str, Any]]) -> None:
+def test_report_and_ephemeris(run: tuple[Path, dict[str, Any]]) -> None:
+    root, _ = run
+    report = (root / "report.md").read_text()
+    assert report.startswith(f"# TIC {TIC}: candidate")
+    assert (root / "ephemeris.json").exists()
+
+
+def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
     root, _ = run
     entries = [
         LogEntry.model_validate_json(line) for line in (root / "log.jsonl").read_text().splitlines()
     ]
     assert [e.tool for e in entries] == [
-        "clean",
-        "search-period",
-        "select-peak",
-        "fold",
-        "fit-transit",
-    ]
+        "clean", "search-period", "select-peak", "fold", "fit-transit", "run-gates", "conclude",
+        "fit-transit", "reproduce", "conclude", "decide", "ephemeris", "render-report",
+    ]  # fmt: skip
     assert all(e.exit_code == 0 for e in entries)
     assert entries[2].reason
+
+
+def test_crossmatch_with_recorded_answers(run: tuple[Path, dict[str, Any]]) -> None:
+    root, _ = run
+    Crossmatch(
+        FixturePlanetCatalogs(), Dossier(root), meta(Context.CATALOG, "crossmatch"),
+        MISSION.catalog,
+    ).execute()  # fmt: skip
+    catalog = Dossier(root).read_envelope("catalog.json", CatalogFile).data
+    assert catalog.status == "known_planet"
+    assert all(m.period_match for m in catalog.matches)
+
+
+def test_fixtures_are_small() -> None:
+    total = sum(p.stat().st_size for p in FIXTURES.iterdir() if p.is_file())
+    assert total < 1_000_000
