@@ -9,120 +9,110 @@
     "./contexts/acquisition/skill": {
       "kind": "skill",
       "id": "skill_01EgdqsEEBYuSfLkNQ8UvuUe",
-      "version": "skver_015GDMZqg79QFeyLgCGjPvTH",
-      "hash": "dc94e621222443443c59a80436df5a48",
-      "stamp": "skver_015GDMZqg79QFeyLgCGjPvTH"
+      "version": "skver_01Bmt6NsuXQiW6GPt4cgxiJ2",
+      "hash": "3489f772ca60714f0b520a93e1733dce"
     },
     "./contexts/catalog/agent.md": {
       "kind": "agent",
       "id": "agent_01WdQZJf8TcKXmuhvr7Q6zwM",
-      "version": "1",
-      "hash": "9e7f00bdf36475af80240ec79ba86673",
-      "remote_hash": "a50f088e384589a82c4d1dd8241a320f",
-      "stamp": "1"
+      "version": "2",
+      "hash": "58762104666a4b0c6c9ddb090cd0382f",
+      "remote_hash": "5e98fd63bde97e51c8ba85020c9c2ce2",
+      "stamp": "2"
     },
     "./contexts/catalog/skill": {
       "kind": "skill",
       "id": "skill_01XiChcyhCuLF6nzG8rXNFru",
-      "version": "skver_01MonLHbdqFdCKBiN8T8ePZ8",
-      "hash": "16afa99f37f3f3b29494b0cf75cc0a5e",
-      "stamp": "skver_01MonLHbdqFdCKBiN8T8ePZ8"
+      "version": "skver_01Brq6KZVnJD294wM7cwpwjp",
+      "hash": "7d43ed44654573226cb795fb422d0290"
     },
     "./contexts/detection/agent.md": {
       "kind": "agent",
       "id": "agent_01VCeKjRhYeAfa1b7iTU6NqJ",
-      "version": "1",
-      "hash": "e655995dbcc6aef3fa9ecaea81d607ac",
-      "remote_hash": "115cf0d0642b4a5b092c8107b0d4d48b",
-      "stamp": "1"
+      "version": "2",
+      "hash": "1a58c292a648925e230509a5c8772062",
+      "remote_hash": "1d5004a46a2373afbff828a1e64f961a",
+      "stamp": "2"
     },
     "./contexts/detection/skill": {
       "kind": "skill",
       "id": "skill_01Fdw6ts9m3tuxphMxVMSepd",
-      "version": "skver_01LjHdbZ6gCQnQ4qKmGfSoWj",
-      "hash": "080e1949b54b087a44b47aba20f44c64",
-      "stamp": "skver_01LjHdbZ6gCQnQ4qKmGfSoWj"
+      "version": "skver_01QmvDKS3Xw36kg1t2GDQcQr",
+      "hash": "4a103fdc9e6256dd63c18f6d5d81962f"
     },
     "./contexts/direction/agent.md": {
       "kind": "agent",
       "id": "agent_01KMwDJrK81CNBCXLSD4dseP",
-      "version": "1",
-      "hash": "944044a938f05149a5d6983bca6757f2",
-      "remote_hash": "690247746e7b564d55e9187290b3c9bd",
-      "stamp": "1"
+      "version": "2",
+      "hash": "5444a48302a0bcee80e6a67fb957062e",
+      "remote_hash": "50b10c21137e0fd38e3280db00de9158",
+      "stamp": "2"
     },
     "./contexts/direction/skill": {
       "kind": "skill",
       "id": "skill_01Y9EPhVktRCX2wVDFM1AaVH",
-      "version": "skver_01JBiiqg77umaKxWhKs6yPbq",
-      "hash": "43ade5f7502f9beb9f4e07ec5e809f5b",
-      "stamp": "skver_01JBiiqg77umaKxWhKs6yPbq"
+      "version": "skver_01RE5pgiaxcPs2c6dYHkKsCK",
+      "hash": "25c7cab0b08df37833840baf7bedd7b5"
     },
     "./contexts/followup/skill": {
       "kind": "skill",
       "id": "skill_01T8CW3xP6KWXuDcfH3eyvmN",
-      "version": "skver_01FRjaB58tAA1D326Yun8yMF",
-      "hash": "89765172abcd07b79e380482789a5f1d",
-      "stamp": "skver_01FRjaB58tAA1D326Yun8yMF"
+      "version": "skver_01GgTS95wdEURDh8Pqheot4B",
+      "hash": "11ac73d54a1f758405d65463c3dac460"
     },
     "./contexts/modeling/skill": {
       "kind": "skill",
       "id": "skill_01WyAvJqMwkLjfZqhem9VrPf",
-      "version": "skver_0182hPr6zcXB8WLKzkUnTqX3",
-      "hash": "3e07e2615e17d14e3b93d3530d82681e",
-      "stamp": "skver_0182hPr6zcXB8WLKzkUnTqX3"
+      "version": "skver_01C81Z1PYGPze7L1fotPL66V",
+      "hash": "ce3af8580f0c19c994aa6fa0a76e8d51"
     },
     "./contexts/preparation/skill": {
       "kind": "skill",
       "id": "skill_01XezvSrs5VYJa6LzrqG8fLH",
-      "version": "skver_01TxDufcQdMaCMAAdGHazLoj",
-      "hash": "099652f652c6434dec98c16ce0c152a2",
-      "stamp": "skver_01TxDufcQdMaCMAAdGHazLoj"
+      "version": "skver_01VU4ym2HgkFFsNZ5EspvuV8",
+      "hash": "7e89c5f976737b41ab7f7b3f3b42e8ec"
     },
     "./contexts/reporting/agent.md": {
       "kind": "agent",
       "id": "agent_01ScVe42pnekAFz7XNHY9Bau",
-      "version": "1",
-      "hash": "5f38d4ea248978b38a616e9079e990b0",
-      "remote_hash": "eee74b0676044ac3e888d1c66899ce34",
-      "stamp": "1"
+      "version": "2",
+      "hash": "1bbe839604c1fb11873705e94918e2d6",
+      "remote_hash": "8924d94bfa40d39a7d50138ffa67609f",
+      "stamp": "2"
     },
     "./contexts/reporting/skill": {
       "kind": "skill",
       "id": "skill_01HGFp4rK5P849yefG48GpaE",
-      "version": "skver_01VQhbVyGkukCFhmzdV2KWi7",
-      "hash": "456f72d58e8d75dd6624e076608371cb",
-      "stamp": "skver_01VQhbVyGkukCFhmzdV2KWi7"
+      "version": "skver_01Fu14FyenMR5YcPHZmPaXpa",
+      "hash": "8bdafb56cc9317ce98b8103b171ed304"
     },
     "./contexts/review/agent.md": {
       "kind": "agent",
       "id": "agent_01DHWG6Xvs2Jct9XoXFhvcAS",
-      "version": "1",
-      "hash": "5d9af0be0680f7d33b8aa1d26a228a77",
-      "remote_hash": "f4b2ba658685a05f93d446c37b16649a",
-      "stamp": "1"
+      "version": "2",
+      "hash": "d2587151cf01afcf503908c23795b8b6",
+      "remote_hash": "b598311288b16eaa7666b4497b484d4e",
+      "stamp": "2"
     },
     "./contexts/review/skill": {
       "kind": "skill",
       "id": "skill_019A8SgnyqZH61WYgon5hQ27",
-      "version": "skver_018XkhYEkL4RwuTQmj6HaeGX",
-      "hash": "2ca6931f528fa20bc7cee06ec207852e",
-      "stamp": "skver_018XkhYEkL4RwuTQmj6HaeGX"
+      "version": "skver_019XRJwEh2Z2NPFjYUm4Ut1a",
+      "hash": "aeb2dea9bee2521dc83c0ebb9beae013"
     },
     "./contexts/vetting/agent.md": {
       "kind": "agent",
       "id": "agent_016YBFLxdcTFZ31y3kER96AW",
-      "version": "1",
-      "hash": "c5d4d9905a035b8b0fc3789bd33d86b5",
-      "remote_hash": "7516a2f3bfd2a53e455ed5dd218f5c8c",
-      "stamp": "1"
+      "version": "2",
+      "hash": "ba9333a18347309840d6b86037591254",
+      "remote_hash": "8afcffc4123ef53819c7b8f74ccf0ebe",
+      "stamp": "2"
     },
     "./contexts/vetting/skill": {
       "kind": "skill",
       "id": "skill_01ED6ZrKadeMEhrC9UhDVFMN",
-      "version": "skver_01HSqu3CojGzbUs6usgbzPU6",
-      "hash": "32ae1e1a855d0fa20ca252e6a849a9fc",
-      "stamp": "skver_01HSqu3CojGzbUs6usgbzPU6"
+      "version": "skver_01E6ZrRF4jJzwAm54sgoJfkX",
+      "hash": "8357c026cd35ec169c63e57aeea59b67"
     },
     "./environment.yaml": {
       "kind": "environment",
@@ -130,6 +120,13 @@
       "hash": "600d811e18ece7d5b7adf31a71d41710",
       "remote_hash": "64dc53515b7ce4722902ca4e00b3c115",
       "stamp": "2026-11-26T22:59:24.199864Z"
+    },
+    "./environment_eval.yaml": {
+      "kind": "environment",
+      "id": "env_017AUfczAicsF12RXMsmySmN",
+      "hash": "706ada148cc35d4e8077444515166026",
+      "remote_hash": "2e2eb4ccc71ad11a75ce9d852de66eaf",
+      "stamp": "2026-11-26T23:36:33.508502Z"
     },
     "./runtime/probe/agent.md": {
       "kind": "agent",
