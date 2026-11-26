@@ -118,6 +118,12 @@ class ModelingConfig(ContractModel):
         return self
 
 
+class CatalogConfig(ContractModel):
+    period_tolerance: PositiveFloat  # relative tolerance of a period match
+    alias_max_integer: PositiveInt  # integer multiples and submultiples up to this count
+    retry: RetryConfig
+
+
 class MissionConfig(ContractModel):
     name: Slug
     description: NonEmptyStr
@@ -125,6 +131,7 @@ class MissionConfig(ContractModel):
     preparation: PreparationConfig
     detection: DetectionConfig
     modeling: ModelingConfig
+    catalog: CatalogConfig
 
 
 class MissionError(ValueError):

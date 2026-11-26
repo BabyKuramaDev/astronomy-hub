@@ -1,22 +1,28 @@
-"""Command-line entry point of the `catalog` context.
-
-Each use case is exposed as a tool (a subcommand). There are no tools yet, so
-every invocation exits with status 2 (invalid input).
-"""
+"""Tools of the `catalog` context: crossmatch."""
 
 import argparse
 
+from contexts.catalog.application.crossmatch import Crossmatch
+from contexts.catalog.infrastructure.archive import ArchiveCatalogs
+from shared.kernel.contexts import Context
+from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
+from shared.toolkit.retry import RetryPolicy
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m contexts.catalog.cli")
-    parser.add_subparsers(dest="tool", metavar="tool", required=True)
-    return parser
+
+def crossmatch(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
+    cfg = ctx.mission.catalog
+    catalogs = ArchiveCatalogs(RetryPolicy(cfg.retry.attempts, cfg.retry.backoff_s))
+    return ToolResult(summary=Crossmatch(catalogs, ctx.dossier, ctx.meta, cfg).execute())
 
 
-def main(argv: list[str] | None = None) -> int:
-    build_parser().parse_args(argv)
-    return 0
-
+cli = ToolCli(Context.CATALOG)
+cli.tool(
+    "crossmatch",
+    "Look the TIC up in pscomppars, the TOI list and the CTOIs; mark which entries match "
+    "the period of signal.json (aliases included) and write catalog.json.",
+    crossmatch,
+)
+main = cli.main
 
 if __name__ == "__main__":
     raise SystemExit(main())

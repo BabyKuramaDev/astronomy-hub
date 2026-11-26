@@ -64,3 +64,10 @@ modeling:
     steps: 8000                  # WASP-18 b: tau_max ~100, so 6000 post-burn steps > 50 tau
     burn: 2000
     autocorr_factor: 50.0        # converged when post-burn steps > factor * max tau
+
+catalog:
+  period_tolerance: 0.01         # a period match is within 1 percent (spec, Librarian prompt)
+  alias_max_integer: 10          # or a multiple or submultiple of it up to 10
+  retry:                         # NASA Exoplanet Archive and ExoFOP
+    attempts: 4
+    backoff_s: 2.0
