@@ -13,6 +13,9 @@ class SectorLightcurveRaw:
     flux: np.ndarray
     flux_err: np.ndarray
     quality: np.ndarray
+    # Flux-weighted centroid in pixels (MOM_CENTR1, MOM_CENTR2); NaN when missing.
+    centroid_col: np.ndarray
+    centroid_row: np.ndarray
 
     @property
     def n_cadences(self) -> int:

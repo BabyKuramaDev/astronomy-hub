@@ -7,7 +7,8 @@ from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt, model_va
 from shared.contracts._base import ContractModel, NonEmptyStr, RelPath
 
 # Columns of every per-sector table (lightcurve/sNNNN.parquet) and of lightcurve_clean.parquet.
-SECTOR_TABLE_COLUMNS = ("time_btjd", "flux", "flux_err")
+# Per-sector tables keep the flux-weighted centroid (pixels) for vetting gate 8; it may be NaN.
+SECTOR_TABLE_COLUMNS = ("time_btjd", "flux", "flux_err", "centroid_col", "centroid_row")
 CLEAN_TABLE_COLUMNS = ("time_btjd", "flux", "flux_err", "sector")
 
 

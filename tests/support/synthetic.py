@@ -58,9 +58,11 @@ def write_spoc_fits(
     flux_err: np.ndarray,
     quality: np.ndarray | None = None,
     scale: float = 50000.0,
+    centroid: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> Path:
     """A minimal SPOC-like light curve file (only the columns the hub reads)."""
     quality = np.zeros(time.size, dtype=np.int32) if quality is None else quality
+    col, row = centroid if centroid is not None else (np.full(time.size, 1000.0),) * 2
     primary = fits.PrimaryHDU()
     primary.header["TELESCOP"] = "TESS"
     primary.header["SECTOR"] = sector
@@ -73,6 +75,8 @@ def write_spoc_fits(
                 name="PDCSAP_FLUX_ERR", format="E", array=(flux_err * scale).astype(np.float32)
             ),
             fits.Column(name="QUALITY", format="J", array=quality.astype(np.int32)),
+            fits.Column(name="MOM_CENTR1", format="D", array=col),
+            fits.Column(name="MOM_CENTR2", format="D", array=row),
         ],
         name="LIGHTCURVE",
     )

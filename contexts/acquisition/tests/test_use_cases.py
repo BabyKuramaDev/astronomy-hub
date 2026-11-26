@@ -9,7 +9,7 @@ import pytest
 from contexts.acquisition.application.fetch_lightcurves import MANIFEST, FetchLightcurves
 from contexts.acquisition.application.fetch_star import STAR, FetchStar
 from contexts.acquisition.infrastructure.spoc_fits import SpocFitsReader
-from shared.contracts import LightcurveSetFile, StarFile
+from shared.contracts import SECTOR_TABLE_COLUMNS, LightcurveSetFile, StarFile
 from shared.kernel.contexts import Context
 from shared.mission import load_mission
 from shared.toolkit.dossier import Dossier
@@ -79,6 +79,8 @@ def test_fetch_lightcurves_writes_tables_and_manifest(tmp_path: Path) -> None:
     assert set(manifest.inputs) == {s.fits_file for s in manifest.data.sectors}
     table = Dossier(tmp_path).read_table(first.table_file)
     assert table["time_btjd"].size == first.n_valid
+    assert tuple(table) == SECTOR_TABLE_COLUMNS
+    assert np.isfinite(table["centroid_col"]).all()
     assert np.isfinite(table["flux"]).all()
     assert MANIFEST in dossier.writes
     assert first.fits_file in dossier.writes

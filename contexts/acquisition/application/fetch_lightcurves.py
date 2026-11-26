@@ -64,6 +64,8 @@ class FetchLightcurves:
                     "time_btjd": time,
                     "flux": raw.flux[mask].astype(np.float64),
                     "flux_err": raw.flux_err[mask].astype(np.float64),
+                    "centroid_col": raw.centroid_col[mask].astype(np.float64),
+                    "centroid_row": raw.centroid_row[mask].astype(np.float64),
                 },
             )
             finite_time = raw.time_btjd[np.isfinite(raw.time_btjd)]

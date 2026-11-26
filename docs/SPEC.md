@@ -301,7 +301,7 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 
 **Notas de implementación de M1**
 
-- `fetch-lightcurves` deja los FITS crudos en `lightcurve/` y, por sector, una tabla `sNNNN.parquet` con `PDCSAP_FLUX` sin NaN ni `QUALITY` distinto de 0. `clean` lee esas tablas a través de `lightcurve/manifest.json` y nunca los FITS.
+- `fetch-lightcurves` deja los FITS crudos en `lightcurve/` y, por sector, una tabla `sNNNN.parquet` con `PDCSAP_FLUX` sin NaN ni `QUALITY` distinto de 0. La tabla guarda también el centroide ponderado por flujo (`MOM_CENTR1`, `MOM_CENTR2`, en píxeles) para la prueba 8; puede ser NaN. `clean` lee esas tablas a través de `lightcurve/manifest.json` y nunca los FITS.
 - `search-period` examina como máximo `examine_factor` × `n_peaks` picos distintos (4 × 5), para que la lista de descartados no crezca sin límite en una estrella sin señal.
 - `peak_separation: 0.02`: con un sector y duraciones de 6 h, los lóbulos laterales del BLS llegan a ~1% del período.
 - `fold` escribe, además de los datos y la figura, `folds/<tag>.json` validado con el mismo resumen que imprime por stdout. Las profundidades se miden tránsito por tránsito: con errores punto a punto, WASP-18 b mostraba una diferencia par/impar espuria de 5,9σ (1,6σ con dispersión entre tránsitos). El error de los pares sale solo de la dispersión entre tránsitos pares, y el de los impares solo de los impares: mezclar los dos grupos inflaría el error de una binaria con eclipses alternados y escondería la diferencia. La medición vive en `shared/kernel/transits.py` y la usan `fold` y la prueba 5.
