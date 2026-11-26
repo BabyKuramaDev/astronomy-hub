@@ -16,7 +16,8 @@ def decide(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
 
 
 def package_dossier(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
-    return ToolResult(summary=PackageDossier(ctx.dossier, ctx.meta, pack).execute(args.dest))
+    use_case = PackageDossier(ctx.dossier, ctx.meta, pack, ctx.log_now)
+    return ToolResult(summary=use_case.execute(args.dest))
 
 
 cli = ToolCli(Context.DIRECTION)

@@ -180,6 +180,14 @@ def test_package_dossier(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert f"{TIC}/decision.json" in names
     assert not any(".cache" in n for n in names)
     assert set(summary["validated"]) == {"signal.json", "vetting.json", "decision.json"}
+    with tarfile.open(archive) as tar:
+        member = tar.extractfile(f"{TIC}/log.jsonl")
+        assert member is not None
+        shipped = member.read().decode().splitlines()
+    assert json.loads(shipped[-1])["tool"] == "package-dossier", "its own line travels in the tar"
+    local = (root(tmp_path) / "log.jsonl").read_text().splitlines()
+    ok = [json.loads(x) for x in local]
+    assert [e["tool"] for e in ok if e["exit_code"] == 0].count("package-dossier") == 1
 
 
 def test_pack_is_deterministic(tmp_path: Path) -> None:

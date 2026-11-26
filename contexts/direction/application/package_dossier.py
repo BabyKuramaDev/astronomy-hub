@@ -19,6 +19,7 @@ DECISION = "decision.json"
 
 # (dossier root, files relative to it, destination) -> sha256 of the archive
 Packer = Callable[[Path, list[str], Path], str]
+LOG = "log.jsonl"
 
 
 def contract_for(rel: str) -> type | None:
@@ -34,6 +35,8 @@ class PackageDossier:
     dossier: Dossier
     meta: ToolMeta
     pack: Packer
+    # Writes this run's log line before packing, so the archive carries it.
+    log_now: Callable[[dict[str, Any]], None] | None = None
 
     def execute(self, dest_dir: Path) -> dict[str, Any]:
         root = self.dossier.root
@@ -53,11 +56,15 @@ class PackageDossier:
         if not dest_dir.is_absolute():
             raise InvalidInputError("--dest must be an absolute path")
         dest = dest_dir / f"dossier-{self.meta.tic_id}.tar.gz"
-        digest = self.pack(root, files, dest)
-        return {
+        summary: dict[str, Any] = {
             "tic_id": self.meta.tic_id,
             "archive": str(dest),
-            "sha256": digest,
-            "n_files": len(files),
+            "n_files": len(files) + (LOG not in files),
             "validated": validated,
         }
+        if self.log_now is not None:
+            self.log_now(summary)  # the archive's own hash cannot be in a file inside it
+            if LOG not in files:
+                files = sorted([*files, LOG])
+        summary["sha256"] = self.pack(root, files, dest)
+        return summary

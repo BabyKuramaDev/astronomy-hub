@@ -13,7 +13,7 @@ import json
 import sys
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -51,6 +51,10 @@ class ToolContext:
     mission: MissionConfig
     dossier: Dossier
     meta: ToolMeta
+    # Writes this run's log.jsonl line now, with exit code 0 and the given summary, so a
+    # tool that ships the dossier (package-dossier) can include its own line. The wrapper
+    # then does not log again. Set by run_handler.
+    log_now: Callable[[dict[str, Any]], None] | None = None
 
 
 @dataclass
@@ -115,6 +119,28 @@ def run_handler(
     result: ToolResult | None = None
     error: str | None = None
     exit_code = 0
+    logged: list[bool] = []
+
+    def entry_for(summary: dict[str, Any] | None, reason: str | None) -> LogEntry:
+        return LogEntry(
+            ts=ts,
+            context=ctx.meta.context,
+            tool=ctx.meta.tool,
+            argv=argv,
+            version=ctx.meta.version,
+            duration_s=round(time.monotonic() - started, 3),
+            exit_code=exit_code,
+            outputs=dict(sorted(ctx.dossier.writes.items())),
+            summary=summary,
+            reason=reason,
+            error=error,
+        )
+
+    def log_now(summary: dict[str, Any]) -> None:
+        ctx.dossier.append_log(entry_for(summary, None))
+        logged.append(True)
+
+    ctx = replace(ctx, log_now=log_now)
     try:
         with isolated_caches(ctx.dossier.cache_dir, ctx.dossier.font_cache_dir):
             result = handler(args, ctx)
@@ -125,25 +151,12 @@ def run_handler(
         )
     except Exception as exc:  # unexpected: still logged, reported on one line
         error, exit_code = f"{type(exc).__name__}: {exc}".splitlines()[0], 1
-    duration = time.monotonic() - started
-
     if result is not None:
         print(json.dumps(result.summary, sort_keys=True, allow_nan=False))
     else:
         print(f"error: {error}", file=sys.stderr)
 
-    entry = LogEntry(
-        ts=ts,
-        context=ctx.meta.context,
-        tool=ctx.meta.tool,
-        argv=argv,
-        version=ctx.meta.version,
-        duration_s=round(duration, 3),
-        exit_code=exit_code,
-        outputs=dict(sorted(ctx.dossier.writes.items())),
-        summary=result.summary if result else None,
-        reason=result.reason if result else None,
-        error=error,
-    )
-    ctx.dossier.append_log(entry)
+    if not logged or exit_code != 0:  # a failure after an early line is logged too
+        entry = entry_for(result.summary if result else None, result.reason if result else None)
+        ctx.dossier.append_log(entry)
     return exit_code
