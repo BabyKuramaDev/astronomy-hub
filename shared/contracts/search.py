@@ -64,6 +64,11 @@ class PeriodSearchData(ContractModel):
     n_periods: PositiveInt
     # Highest SNR of the same search on the inverted light curve: the star's noise floor.
     inverted_snr_max: NonNegativeFloat
+    # Density behind the duration limit, and where it came from (the star's TIC values or
+    # the mission's fallback); null in files written before M5.
+    stellar_density_solar: PositiveFloat | None = None
+    density_source: NonEmptyStr | None = None
+    eccentricity_factor: PositiveFloat | None = None
     peaks: list[SearchPeak]
     discarded: list[DiscardedPeak]
 

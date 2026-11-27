@@ -31,13 +31,14 @@ from evals.outcomes import from_dossier
 from evals.paths import REPO, evals_dir
 
 CODE = ("contexts", "shared", "missions", "scripts/build_dossier.py", "uv.lock")
-STAGES = ("start", "select", "fit", "vetting", "review")
+STAGES = ("start", "search", "select", "fit", "vetting", "review")
 REVIEW = ["review.json", "review", "decision.json"]
 VETTING = ["vetting.json", "vetting", *REVIEW]
 FIT = ["model.json", *VETTING]
 SELECT = ["signal.json", "folds", "figures", *FIT]
 CLEAR = {
     "start": ["search.json", *SELECT, "log.jsonl"],
+    "search": ["search.json", *SELECT],
     "select": SELECT,
     "fit": FIT,
     "vetting": VETTING,
@@ -96,7 +97,8 @@ def clear(root: Path, stage: str) -> None:
 
 def run_star(tic: int, workspace: Path, stage: str = "start", attempts: int = 2):
     root = workspace / "exoplanets" / str(tic)
-    if stage != "start" and not (root / "search.json").exists():
+    needed = "lightcurve_clean.parquet" if stage == "search" else "search.json"
+    if stage != "start" and not (root / needed).exists():
         stage = "start"  # nothing to resume from
     for attempt in range(attempts):
         if root.exists():

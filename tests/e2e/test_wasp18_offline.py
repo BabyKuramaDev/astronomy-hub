@@ -183,7 +183,7 @@ def test_fixtures_are_small() -> None:
     assert total < 1_000_000
 
 
-@pytest.mark.parametrize("stage", ["select", "fit", "vetting", "review"])
+@pytest.mark.parametrize("stage", ["search", "select", "fit", "vetting", "review"])
 def test_staged_rerun_gives_the_same_decision(
     run: tuple[Path, dict[str, Any]], tmp_path: Path, stage: str
 ) -> None:
@@ -200,8 +200,10 @@ def test_staged_rerun_gives_the_same_decision(
         TIC, tmp_path, "--mode", "eval", "--skip", "acquisition,catalog", "--from", stage
     )
     assert rerun["final"] == summary["final"] == "candidate"
-    assert (copy / "search.json").read_bytes() == search, "earlier stages are not rerun"
     tools = [s["tool"] for s in rerun["steps"]]
-    assert "detection search-period" not in tools
-    assert ("modeling fit-transit" in tools) == (stage in ("select", "fit"))
+    assert "preparation clean" not in tools
+    assert ("detection search-period" in tools) == (stage == "search")
+    if stage != "search":
+        assert (copy / "search.json").read_bytes() == search, "earlier stages are not rerun"
+    assert ("modeling fit-transit" in tools) == (stage in ("search", "select", "fit"))
     assert ("vetting run-gates" in tools) == (stage != "review")

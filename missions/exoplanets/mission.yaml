@@ -32,8 +32,21 @@ detection:
   durations_hours: [1.0, 2.0, 3.0, 4.0, 6.0]
   duration_limit:                # each period only tries durations up to the longest central
                                  # transit possible (Kepler's third law, astropy constants)
-    stellar_density_min_solar: 0.05  # least dense host the mission searches (a subgiant)
+    # The star's own density (TIC radius and mass, lower end) when star.json has both;
+    # otherwise this fallback: the 5th percentile of st_dens over the 3689 host stars of
+    # transiting planets (NASA Exoplanet Archive, 2026-11-27; 1.41 g/cm3 = 1 solar):
+    #   select hostname, st_dens, st_rad, st_mass from pscomppars
+    #   where tran_flag = 1 and st_dens is not null
+    # It was 0.05, which left every duration of the grid possible at every period.
+    stellar_density_min_solar: 0.144
     rp_rs_max: 0.3                   # largest radius ratio considered
+    # A transit near apoastron lasts sqrt((1+e)/(1-e)) times a circular one; e = 0.23 is
+    # the 95th percentile of pl_orbeccen over the 2788 transiting planets with a value
+    # and P in 0.5-15 d (same archive and date; orbits fixed at e = 0 count, as expected
+    # for tidally circularized short periods; those with e > 0 measured give 0.38):
+    #   select pl_name, pl_orbper, pl_orbeccen, pl_orbeccenerr1 from pscomppars
+    #   where tran_flag = 1 and pl_orbper between 0.5 and 15 and pl_orbeccen is not null
+    eccentricity_factor: 1.264
   bin_minutes: 10.0              # binning used only for the period search
   frequency_factor: 1.0          # astropy BLS autoperiod grid density
   n_peaks: 5

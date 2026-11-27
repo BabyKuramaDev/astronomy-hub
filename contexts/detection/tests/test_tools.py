@@ -113,3 +113,40 @@ def test_search_without_clean_light_curve_exits_3(
 ) -> None:
     assert main(["search-period", "--tic", "5", "--workspace", str(tmp_path)]) == 3
     assert "lightcurve_clean.parquet" in capsys.readouterr().err
+
+
+def test_search_uses_the_star_density_or_the_fallback(clean_dossier: Path, dossier: Path) -> None:
+    from shared.contracts import Measurement, StarData
+    from shared.kernel.contexts import Context
+    from shared.mission import load_mission
+    from shared.toolkit.meta import ToolMeta
+
+    assert run(clean_dossier, "search-period") == 0
+    data = Dossier(dossier).read_envelope("search.json", SearchFile).data
+    limit = load_mission("exoplanets").detection.duration_limit
+    assert data.stellar_density_solar == limit.stellar_density_min_solar
+    assert "fallback" in (data.density_source or "")
+    assert data.eccentricity_factor == limit.eccentricity_factor
+
+    def m(v: float) -> Measurement:
+        return Measurement(value=v, err_lower=0.05, err_upper=0.05)
+
+    star = StarData(
+        ra_deg=10.0,
+        dec_deg=-5.0,
+        tmag=9.0,
+        teff_k=None,
+        logg=None,
+        radius_rsun=m(1.0),
+        mass_msun=m(1.0),
+        contamination_ratio=None,
+        source="TIC v8.2",
+        neighbor_radius_arcsec=60.0,
+        neighbors=[],
+    )
+    meta = ToolMeta(Context.ACQUISITION, "fetch-star", TIC, "exoplanets", "0.1.0")
+    Dossier(dossier).write_envelope("star.json", meta.envelope(star, {}))
+    assert run(clean_dossier, "search-period") == 0
+    env = Dossier(dossier).read_envelope("search.json", SearchFile)
+    assert env.data.stellar_density_solar == pytest.approx(0.95 / 1.05**3)
+    assert "star.json" in env.inputs

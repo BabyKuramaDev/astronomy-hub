@@ -7,7 +7,9 @@ signal detection efficiency of the periodogram, as data for later calibration.
 
 The durations tried at each period are limited to what is physically possible:
 the longest central transit of a planet with radius ratio rp_rs_max around a star
-of density stellar_density_min_solar, from Kepler's third law.
+of density stellar_density_min_solar, from Kepler's third law, times
+eccentricity_factor (a transit near apoastron lasts longer than a circular one). The
+caller passes the star's own density when the TIC has it.
 """
 
 import math
@@ -46,6 +48,7 @@ class SearchParams:
     stellar_density_min_solar: float
     rp_rs_max: float
     floor_mask_durations: float  # half-width masked around the top peak's transits
+    eccentricity_factor: float = 1.0  # margin over the circular maximum duration
 
 
 @dataclass(frozen=True)
@@ -194,7 +197,9 @@ def run_bls(
     T_max grows with the period, so the grid splits into contiguous stretches that share
     the same set of allowed durations; periods where no duration is allowed are dropped.
     """
-    limit = max_duration_days(periods, params.stellar_density_min_solar, params.rp_rs_max)
+    limit = params.eccentricity_factor * max_duration_days(
+        periods, params.stellar_density_min_solar, params.rp_rs_max
+    )
     n_allowed = np.searchsorted(np.sort(durations_days), limit, side="right")
     durations = np.sort(durations_days)
     parts: dict[str, list[np.ndarray]] = {k: [] for k in Periodogram.__dataclass_fields__}

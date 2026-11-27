@@ -57,10 +57,14 @@ class FoldConfig(ContractModel):
 
 
 class DurationLimit(ContractModel):
-    """Envelope for the longest possible transit at each period (Kepler's third law)."""
+    """Envelope for the longest possible transit at each period (Kepler's third law).
+
+    The star's own density (lower end of its TIC interval) is used when star.json has
+    radius and mass; stellar_density_min_solar is the fallback."""
 
     stellar_density_min_solar: PositiveFloat
     rp_rs_max: Annotated[float, Field(gt=0, lt=1)]
+    eccentricity_factor: Annotated[float, Field(ge=1)] = 1.0
 
 
 class DetectionConfig(ContractModel):

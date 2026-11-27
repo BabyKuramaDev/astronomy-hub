@@ -147,8 +147,24 @@ def test_search_skips_impossible_durations() -> None:
     time, flux, err = light_curve(days=27.0, transit=TRANSIT, noise_ppm=1000.0, seed=2)
     outcome = search_periods(time, flux, err, params)
     for peak in outcome.peaks:
-        limit = float(max_duration_days(peak.period_days, 50.0, 0.1)) * 24.0
-        assert peak.duration_hours <= limit + 1e-9
+        limit = params.eccentricity_factor * float(max_duration_days(peak.period_days, 50.0, 0.1))
+        assert peak.duration_hours <= limit * 24.0 + 1e-9
+
+
+def test_the_mission_limit_rules_out_six_hours_at_short_periods() -> None:
+    """With the fallback density and the eccentricity margin, a 6 h transit at P = 0.6 d
+    (a/R* of about 1, an orbit grazing the star) is no longer searched; with the old 0.05
+    it was allowed at every period."""
+    from shared.mission import load_mission
+
+    limit = load_mission("exoplanets").detection.duration_limit
+    hours = (
+        limit.eccentricity_factor
+        * float(max_duration_days(0.598, limit.stellar_density_min_solar, limit.rp_rs_max))
+        * 24.0
+    )
+    assert hours < 6.0
+    assert float(max_duration_days(0.598, 0.05, limit.rp_rs_max)) * 24.0 > 6.0
 
 
 def test_inverted_floor_and_sde() -> None:

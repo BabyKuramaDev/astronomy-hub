@@ -75,7 +75,7 @@ class Runner:
         )
 
 
-STAGES = ("start", "select", "fit", "vetting", "review")
+STAGES = ("start", "search", "select", "fit", "vetting", "review")
 
 
 def read_data(root: Path, name: str) -> Any:
@@ -93,9 +93,10 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             run.tool("acquisition", "fetch-lightcurves")
             run.tool("acquisition", "fetch-star")
         run.tool("preparation", "clean")
+    if stage <= 1:
         run.tool("detection", "search-period")
 
-    if stage <= 1:
+    if stage <= 2:
         search = read_data(root, "search.json")
         chosen = None
         for peak in search["peaks"]:
@@ -122,15 +123,15 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     elif not read_data(root, "signal.json")["detected"]:
         return finish(run, args, catalog_done=False)
 
-    if stage <= 2:
+    if stage <= 3:
         run.tool("modeling", "fit-transit")
-    catalog_done = args.mode == "explore" and "catalog" not in skip and stage <= 2
+    catalog_done = args.mode == "explore" and "catalog" not in skip and stage <= 3
     if catalog_done:
         catalog = run.tool("catalog", "crossmatch")
         if catalog["status"] in KNOWN | KNOWN_FALSE:
             return finish(run, args, catalog_done=True)
 
-    if stage <= 3:
+    if stage <= 4:
         gates = run.tool("vetting", "run-gates")
         failing = [
             g["gate"] for g in gates["gates"] if g["status"] != "pass" and g["severity"] != "info"
