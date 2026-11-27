@@ -25,7 +25,9 @@ COLUMNS = [
     ("detection_recall", "detection recall"),
     ("final_recall", "final recall"),
     ("candidate_wrong_period", "candidate, wrong period"),
+    ("false_positive_rejected", "FP rejected"),
     ("false_positive_accepted", "FP accepted"),
+    ("no_signal_correct", "no_signal"),
     ("false_alarm", "false alarm"),
     ("inconclusive", "inconclusive"),
     ("reproduced", "reproduced"),
@@ -77,7 +79,7 @@ def report(
         f"- set hash: `{labels['set_hash']}`",
         f"- version key: `{key}`",
         f"- commits: {', '.join(commits)}",
-        f"- stars scored: {len(rows)}",
+        f"- stars scored: {len(result['rows'])}",
     ]
     versions = rows[-1].get("versions")
     if versions:

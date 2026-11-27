@@ -74,19 +74,36 @@ class GroupStats:
     inconclusive: int = 0
     reproduced: int = 0
     incomplete: int = 0
+    no_signal_correct: int = 0
 
-    def rates(self) -> dict[str, float | None]:
+    def rates(self, group: str) -> dict[str, float | None]:
+        """Only the metrics that mean something for the group; the rest stay None."""
+
         def rate(k: int) -> float | None:
             return round(k / self.n, 3) if self.n else None
 
-        return {
-            "detection_recall": rate(self.detected),
-            "final_recall": rate(self.final_ok),
-            "false_positive_accepted": rate(self.accepted_false_positive),
-            "false_alarm": rate(self.false_alarm),
-            "inconclusive": rate(self.inconclusive),
-            "reproduced": rate(self.reproduced),
-        }
+        out: dict[str, float | None] = dict.fromkeys(
+            (
+                "detection_recall",
+                "final_recall",
+                "false_positive_rejected",
+                "false_positive_accepted",
+                "no_signal_correct",
+                "false_alarm",
+            )
+        )
+        if group in PLANETS:
+            out["detection_recall"] = rate(self.detected)
+            out["final_recall"] = rate(self.final_ok)
+        elif group == "false_positive":
+            out["false_positive_rejected"] = rate(self.rejected_false_positive)
+            out["false_positive_accepted"] = rate(self.accepted_false_positive)
+        else:
+            out["no_signal_correct"] = rate(self.no_signal_correct)
+            out["false_alarm"] = rate(self.false_alarm)
+        out["inconclusive"] = rate(self.inconclusive)
+        out["reproduced"] = rate(self.reproduced)
+        return out
 
 
 def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dict[str, Any]:
@@ -136,6 +153,7 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
             st.rejected_false_positive += out.final == "false_positive"
         else:
             st.false_alarm += out.final == "candidate"
+            st.no_signal_correct += out.final == "no_signal"
             if out.detected:
                 st.detections_to_review.append(tic)
         st.inconclusive += out.final == "inconclusive"
@@ -148,8 +166,10 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
                     "split": split_name,
                     "group": group,
                     "n": st.n,
-                    **st.rates(),
-                    "candidate_wrong_period": st.candidate_wrong_period,
+                    **st.rates(group),
+                    "candidate_wrong_period": st.candidate_wrong_period
+                    if group in PLANETS
+                    else None,
                     "incomplete": st.incomplete,
                     "detections_to_review": sorted(st.detections_to_review),
                 }
