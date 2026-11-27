@@ -32,7 +32,11 @@ T0, PERIOD, RP, B, LOG_A, Q1, Q2, F0, LOG_JITTER = range(NDIM)
 
 
 class FitError(ValueError):
-    """The fit cannot run with the given data or settings."""
+    """The fit failed on this data: recorded as a failed model, not a tool error."""
+
+
+class FitSettingsError(FitError):
+    """The chain settings are invalid: the caller's mistake, a tool input error."""
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,17 @@ class FitResult:
     rp_rs_samples: np.ndarray
     convergence: Convergence | None
     n_points: int
+
+
+def geometry_problem(fit: FitResult) -> str | None:
+    """Why the fitted orbit cannot make this transit, or None: an orbit inside the star
+    (a/R* <= 1) or an impact parameter at or beyond a/R* (nothing transits)."""
+    a, b = fit.a_rs.value, fit.impact_parameter.value
+    if a <= 1.0:
+        return f"impossible geometry: a/R* = {a:.3g} puts the orbit inside the star"
+    if b >= a:
+        return f"impossible geometry: impact parameter {b:.3g} >= a/R* = {a:.3g}, nothing transits"
+    return None
 
 
 def summarize(samples: np.ndarray) -> Measurement:
@@ -237,9 +252,9 @@ def fit_mcmc(
     chain: ChainSettings,
 ) -> FitResult:
     if chain.walkers < 2 * NDIM:
-        raise FitError(f"walkers must be at least {2 * NDIM} for {NDIM} parameters")
+        raise FitSettingsError(f"walkers must be at least {2 * NDIM} for {NDIM} parameters")
     if chain.burn >= chain.steps:
-        raise FitError("burn must be below steps")
+        raise FitSettingsError("burn must be below steps")
     prob = _prepare(time, flux, flux_err, guess, settings)
     # Walkers start around the least-squares optimum, which shortens the burn-in.
     opt = _optimize(prob, settings)

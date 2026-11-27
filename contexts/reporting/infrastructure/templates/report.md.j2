@@ -33,7 +33,9 @@ No transit-like signal was recorded (`signal.json`: `detected=false`).
 
 ## Model
 
-{% if model -%}
+{% if model and model.status == "failed" -%}
+The `{{ model.method }}` fit failed: {{ model.failure }} (`model.json`). No model parameters.
+{% elif model -%}
 Fit method: `{{ model.method }}` (`model.json`).
 
 | Parameter | Value | Source |

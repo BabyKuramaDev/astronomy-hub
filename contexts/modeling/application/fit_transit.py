@@ -12,8 +12,10 @@ from contexts.modeling.domain.fit import (
     FitError,
     FitResult,
     FitSettings,
+    FitSettingsError,
     fit_mcmc,
     fit_quick,
+    geometry_problem,
     planet_radius,
 )
 from contexts.modeling.domain.transit import Guess
@@ -109,8 +111,13 @@ class FitTransit:
         args = (table["time_btjd"], table["flux"], table["flux_err"], guess, settings)
         try:
             fit = fit_quick(*args, cfg.quick.samples) if mode == "quick" else fit_mcmc(*args, chain)
-        except FitError as exc:
+            failure = geometry_problem(fit)
+        except FitSettingsError as exc:
             raise InvalidInputError(str(exc)) from exc
+        except FitError as exc:
+            failure = str(exc)
+        if failure is not None:
+            return self._failed(mode, failure)
 
         warnings = []
         radius = None
@@ -156,6 +163,32 @@ class FitTransit:
             summary["convergence"] = convergence.model_dump(mode="json")
         summary |= {"warnings": warnings, "file": MODEL}
         return summary
+
+    def _failed(self, mode: str, failure: str) -> dict[str, Any]:
+        """A failed fit is a result: model.json with status failed and its reason."""
+        data = ModelData(
+            method=mode,  # type: ignore[arg-type]
+            status="failed",
+            failure=failure,
+            rp_rs=None,
+            planet_radius_rearth=None,
+            impact_parameter=None,
+            a_rs=None,
+            period_days=None,
+            epoch_btjd=None,
+            duration_hours=None,
+            jitter_ppm=None,
+            stellar_source=None,
+            convergence=None,
+        )
+        self.dossier.write_envelope(MODEL, self.meta.envelope(data, self.dossier.reads))
+        return {
+            "tic_id": self.meta.tic_id,
+            "method": mode,
+            "status": "failed",
+            "failure": failure,
+            "file": MODEL,
+        }
 
     @staticmethod
     def _convergence(

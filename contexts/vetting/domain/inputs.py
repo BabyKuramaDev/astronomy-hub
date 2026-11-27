@@ -20,10 +20,11 @@ class RawSector:
 
 @dataclass(frozen=True)
 class ModelInfo:
-    rp_rs: Measurement
+    rp_rs: Measurement | None
     planet_radius_rearth: Measurement | None
-    duration_hours: Measurement
+    duration_hours: Measurement | None
     method: str
+    failure: str | None = None  # model.json is a failed fit: no measurement to use
 
 
 @dataclass(frozen=True)

@@ -25,6 +25,12 @@ class Ephemeris:
         if start.utcoffset() is None:
             raise InvalidInputError("--start must carry a time zone (use Z for UTC)")
         model = self.dossier.read_envelope(MODEL, ModelFile).data
+        if model.status == "failed" or None in (
+            model.period_days,
+            model.epoch_btjd,
+            model.duration_hours,
+        ):
+            raise InvalidInputError(f"model.json is a failed fit ({model.failure}): no ephemeris")
         period, epoch = model.period_days, model.epoch_btjd
         if period.value <= 0:
             raise InvalidInputError("model.json has a non-positive period")

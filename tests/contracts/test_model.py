@@ -96,3 +96,37 @@ def test_planet_radius_and_source_go_together(
 ) -> None:
     with pytest.raises(ValidationError, match="both"):
         ModelData.model_validate({**model_data, **overrides})
+
+
+FAILED = {
+    "method": "quick",
+    "status": "failed",
+    "failure": "no valid samples to summarize",
+    **dict.fromkeys(
+        (
+            "rp_rs",
+            "planet_radius_rearth",
+            "impact_parameter",
+            "a_rs",
+            "period_days",
+            "epoch_btjd",
+            "duration_hours",
+            "jitter_ppm",
+            "stellar_source",
+            "convergence",
+        )
+    ),
+}
+
+
+def test_a_failed_fit_has_a_reason_and_no_measurement(model_data: dict[str, Any]) -> None:
+    assert ModelData.model_validate(FAILED).status == "failed"
+    assert ModelData.model_validate(model_data).status == "fitted"  # the default
+    with pytest.raises(ValidationError):
+        ModelData.model_validate({**FAILED, "failure": None})
+    with pytest.raises(ValidationError):
+        ModelData.model_validate({**FAILED, "rp_rs": m(0.1)})
+    with pytest.raises(ValidationError):
+        ModelData.model_validate({**model_data, "rp_rs": None})
+    with pytest.raises(ValidationError):
+        ModelData.model_validate({**model_data, "failure": "something"})

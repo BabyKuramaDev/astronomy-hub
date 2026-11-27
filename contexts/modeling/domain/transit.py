@@ -68,7 +68,9 @@ class TransitPosterior:
         a = math.exp(log_a)
         p = self._params
         p.t0, p.per, p.rp, p.a = t0, period, rp, a
-        p.inc = math.degrees(math.acos(b / a))
+        # b >= a has no transiting orbit: cap at a face-on orbit, whose model is flat, so
+        # the optimizer can leave that region instead of raising (math domain error).
+        p.inc = math.degrees(math.acos(min(b / a, 1.0)))
         p.ecc, p.w = 0.0, 90.0
         p.u = list(limb_darkening(q1, q2))
         p.limb_dark = "quadratic"

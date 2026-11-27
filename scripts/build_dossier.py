@@ -171,7 +171,10 @@ def finish(run: Runner, args: argparse.Namespace, catalog_done: bool) -> dict[st
         return summary_of(run, args, decision, root)
     if args.mode == "full" and "catalog" not in args.skip and not catalog_done:
         run.tool("catalog", "crossmatch")  # blind: after the decision
-    if (root / "model.json").exists() and decision["final"] in ("candidate", "inconclusive"):
+    fitted = (root / "model.json").exists() and read_data(root, "model.json").get(
+        "status"
+    ) != "failed"
+    if fitted and decision["final"] in ("candidate", "inconclusive"):
         run.tool("followup", "ephemeris", *(["--start", args.start] if args.start else []))
     run.tool("reporting", "render-report")
     return summary_of(run, args, decision, root)

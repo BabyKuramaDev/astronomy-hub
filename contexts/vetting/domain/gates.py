@@ -287,8 +287,9 @@ def circular_duration_days(period_days: float, radius_rsun: float, mass_msun: fl
 
 
 def _planet_radius(inputs: GateInputs) -> tuple[Measurement | None, str]:
-    """From model.json; without a model, sqrt(depth) times the stellar radius."""
-    model, star = inputs.model, inputs.stellar_radius
+    """From model.json; without a fitted model, sqrt(depth) times the stellar radius."""
+    star = inputs.stellar_radius
+    model = inputs.model if inputs.model is not None and inputs.model.failure is None else None
     if model is not None and model.planet_radius_rearth is not None:
         return model.planet_radius_rearth, f"model.json ({model.method})"
     if model is None and star is not None and inputs.depth_ppm > 0:
@@ -297,7 +298,7 @@ def _planet_radius(inputs: GateInputs) -> tuple[Measurement | None, str]:
             Measurement(
                 value=rp * star.value, err_lower=rp * star.err_lower, err_upper=rp * star.err_upper
             ),
-            "signal.json depth and star.json radius (no model.json)",
+            "signal.json depth and star.json radius (no fitted model.json)",
         )
     return None, "no stellar radius in the TIC"
 
@@ -340,8 +341,14 @@ def gate_plausibility(inputs: GateInputs, params: MeasureParams, cfg: Any) -> Ga
             checks.append(_Check("pass", f"radius {radius.value:.1f} R_earth from {source}"))
 
     star_r, star_m = inputs.stellar_radius, inputs.stellar_mass
+    fitted = inputs.model if inputs.model is not None and inputs.model.failure is None else None
+    if inputs.model is not None and inputs.model.failure is not None:
+        # A failed fit is not evidence against a planet on its own: marginal, never fail.
+        checks.append(_Check("marginal", f"model.json is a failed fit ({inputs.model.failure})"))
     duration_h = (
-        inputs.model.duration_hours.value if inputs.model is not None else inputs.duration_hours
+        fitted.duration_hours.value
+        if fitted is not None and fitted.duration_hours is not None
+        else inputs.duration_hours
     )
     if star_r is not None and star_m is not None:
         expected_h = circular_duration_days(inputs.period_days, star_r.value, star_m.value) * 24

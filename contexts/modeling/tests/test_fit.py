@@ -131,3 +131,42 @@ def test_solar_to_earth_radius_comes_from_astropy_constants() -> None:
     from astropy import constants
 
     assert (constants.R_sun / constants.R_earth).decompose().value == RSUN_IN_REARTH
+
+
+def test_a_non_transiting_geometry_gives_a_flat_model() -> None:
+    import math
+
+    import numpy as np
+
+    from contexts.modeling.domain.transit import Bounds, TransitPosterior
+
+    time = np.linspace(0.0, 2.0, 500)
+    # t0, period, rp, b, log(a/R*), q1, q2, f0, log(jitter)
+    good = np.array([1.0, 1.0, 0.1, 0.3, math.log(5.0), 0.4, 0.3, 1.0, math.log(1e-4)])
+    posterior = TransitPosterior(
+        time, np.ones_like(time), np.full_like(time, 1e-3), Bounds((0.0, 2.0), (0.5, 1.5)), good
+    )
+    assert posterior.model(good).min() < 0.995  # transits
+    impossible = good.copy()
+    impossible[3], impossible[4] = 3.0, math.log(2.0)  # b = 3 >= a/R* = 2
+    flat = posterior.model(impossible)  # used to raise "math domain error"
+    assert np.allclose(flat, 1.0)
+
+
+def test_geometry_problem() -> None:
+    from dataclasses import replace
+
+    import numpy as np
+
+    from contexts.modeling.domain.fit import FitResult, geometry_problem
+    from shared.contracts.model import Measurement
+
+    def m(v: float) -> Measurement:
+        return Measurement(value=v, err_lower=0.0, err_upper=0.0)
+
+    fit = FitResult(
+        "quick", m(0.1), m(0.3), m(8.0), m(0.0), m(2.0), m(2.0), m(10.0), np.array([0.1]), None, 100
+    )
+    assert geometry_problem(fit) is None
+    assert "inside the star" in (geometry_problem(replace(fit, a_rs=m(0.9))) or "")
+    assert "nothing transits" in (geometry_problem(replace(fit, impact_parameter=m(9.0))) or "")

@@ -26,9 +26,15 @@ def test_btjd_round_trip() -> None:
 def test_errors_grow_with_the_number_of_periods() -> None:
     start = btjd_to_utc(1000.0)
     transits = next_transits(
-        epoch=1000.5, epoch_err=1e-3, period=2.0, period_err=1e-4, duration_hours=3.0,
-        start=start, horizon_days=10.0, max_transits=20,
-    )  # fmt: skip
+        epoch=1000.5,
+        epoch_err=1e-3,
+        period=2.0,
+        period_err=1e-4,
+        duration_hours=3.0,
+        start=start,
+        horizon_days=10.0,
+        max_transits=20,
+    )
     assert [t.n for t in transits] == [0, 1, 2, 3, 4]
     assert transits[0].err_minutes == pytest.approx(1e-3 * 1440)
     assert transits[4].err_minutes == pytest.approx((1e-6 + (4e-4) ** 2) ** 0.5 * 1440)
@@ -38,20 +44,32 @@ def test_errors_grow_with_the_number_of_periods() -> None:
 
 def test_max_transits() -> None:
     transits = next_transits(
-        epoch=1000.5, epoch_err=0.0, period=0.5, period_err=0.0, duration_hours=1.0,
-        start=btjd_to_utc(1099.9), horizon_days=30.0, max_transits=3,
-    )  # fmt: skip
+        epoch=1000.5,
+        epoch_err=0.0,
+        period=0.5,
+        period_err=0.0,
+        duration_hours=1.0,
+        start=btjd_to_utc(1099.9),
+        horizon_days=30.0,
+        max_transits=3,
+    )
     assert [t.n for t in transits] == [199, 200, 201]
 
 
 def write_model(root: Path) -> None:
     data = ModelData(
-        method="quick", rp_rs=m(0.1, 0.001), planet_radius_rearth=None,
-        impact_parameter=m(0.3, 0.02), a_rs=m(5.0, 0.1), period_days=m(2.0, 1e-5),
+        method="quick",
+        rp_rs=m(0.1, 0.001),
+        planet_radius_rearth=None,
+        impact_parameter=m(0.3, 0.02),
+        a_rs=m(5.0, 0.1),
+        period_days=m(2.0, 1e-5),
         epoch_btjd=m(utc_to_btjd(datetime(2026, 11, 1, tzinfo=UTC)), 2e-4),
-        duration_hours=m(2.5, 0.05), jitter_ppm=m(10.0, 1.0), stellar_source=None,
+        duration_hours=m(2.5, 0.05),
+        jitter_ppm=m(10.0, 1.0),
+        stellar_source=None,
         convergence=None,
-    )  # fmt: skip
+    )
     meta = ToolMeta(Context.MODELING, "fit-transit", TIC, "exoplanets", "0.1.0")
     Dossier(root).write_envelope("model.json", meta.envelope(data, {}))
 
@@ -75,3 +93,26 @@ def test_ephemeris_tool(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
 def test_ephemeris_needs_a_model(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["ephemeris", "--tic", str(TIC), "--workspace", str(tmp_path)]) == 3
     assert "model.json not found" in capsys.readouterr().err
+
+
+def test_ephemeris_refuses_a_failed_fit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    root = tmp_path / "exoplanets" / str(TIC)
+    data = ModelData(
+        method="quick",
+        status="failed",
+        failure="no valid samples to summarize",
+        rp_rs=None,
+        planet_radius_rearth=None,
+        impact_parameter=None,
+        a_rs=None,
+        period_days=None,
+        epoch_btjd=None,
+        duration_hours=None,
+        jitter_ppm=None,
+        stellar_source=None,
+        convergence=None,
+    )
+    meta = ToolMeta(Context.MODELING, "fit-transit", TIC, "exoplanets", "0.1.0")
+    Dossier(root).write_envelope("model.json", meta.envelope(data, {}))
+    assert main(["ephemeris", "--tic", str(TIC), "--workspace", str(tmp_path)]) == 2
+    assert "failed fit" in capsys.readouterr().err

@@ -58,7 +58,9 @@ def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
         model_env = dossier.read_envelope(MODEL, ModelFile)
         if not dossier.stale_inputs(model_env, (SIGNAL,)):  # a model of another signal is ignored
             m = model_env.data
-            model = ModelInfo(m.rp_rs, m.planet_radius_rearth, m.duration_hours, m.method)
+            model = ModelInfo(
+                m.rp_rs, m.planet_radius_rearth, m.duration_hours, m.method, m.failure
+            )
     catalog = None
     if dossier.exists(CATALOG):
         cat_env = dossier.read_envelope(CATALOG, CatalogFile)

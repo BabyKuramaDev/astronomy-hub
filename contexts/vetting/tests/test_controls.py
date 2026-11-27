@@ -150,3 +150,12 @@ def test_plausibility_radius_thresholds(radius_rjup: float, err_rjup: float, sta
         replace(make_inputs(), model=model), PARAMS, CONFIG.gates.plausibility
     )
     assert outcome.status == status, outcome.note
+
+
+def test_a_failed_fit_makes_plausibility_marginal_not_fail() -> None:
+    model = ModelInfo(None, None, None, "quick", failure="impossible geometry: a/R* = 0.8")
+    outcome = gate_spec("plausibility").fn(  # type: ignore[union-attr]
+        replace(make_inputs(), model=model), PARAMS, CONFIG.gates.plausibility
+    )
+    assert outcome.status == "marginal", outcome.note
+    assert "failed fit" in outcome.note
