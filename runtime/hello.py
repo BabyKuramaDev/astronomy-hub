@@ -30,10 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     reference = json.loads(REFERENCE.read_text())
     try:
         commit = pinned_commit()
-        director = resource("./contexts/direction/agent.md")
-        environment = resource(
-            "./environment_eval.yaml" if args.mode == "eval" else "./environment.yaml"
+        blind = args.mode == "eval"  # the eval Director has a roster of three
+        director = resource(
+            "./contexts/direction/agent_eval.md" if blind else "./contexts/direction/agent.md"
         )
+        environment = resource("./environment_eval.yaml" if blind else "./environment.yaml")
     except RepoStateError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

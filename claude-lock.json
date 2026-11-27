@@ -10,7 +10,8 @@
       "kind": "skill",
       "id": "skill_01EgdqsEEBYuSfLkNQ8UvuUe",
       "version": "skver_01Bmt6NsuXQiW6GPt4cgxiJ2",
-      "hash": "3489f772ca60714f0b520a93e1733dce"
+      "hash": "3489f772ca60714f0b520a93e1733dce",
+      "stamp": "skver_01Bmt6NsuXQiW6GPt4cgxiJ2"
     },
     "./contexts/catalog/agent.md": {
       "kind": "agent",
@@ -24,7 +25,8 @@
       "kind": "skill",
       "id": "skill_01XiChcyhCuLF6nzG8rXNFru",
       "version": "skver_01Brq6KZVnJD294wM7cwpwjp",
-      "hash": "7d43ed44654573226cb795fb422d0290"
+      "hash": "7d43ed44654573226cb795fb422d0290",
+      "stamp": "skver_01Brq6KZVnJD294wM7cwpwjp"
     },
     "./contexts/detection/agent.md": {
       "kind": "agent",
@@ -38,39 +40,52 @@
       "kind": "skill",
       "id": "skill_01Fdw6ts9m3tuxphMxVMSepd",
       "version": "skver_01QmvDKS3Xw36kg1t2GDQcQr",
-      "hash": "4a103fdc9e6256dd63c18f6d5d81962f"
+      "hash": "4a103fdc9e6256dd63c18f6d5d81962f",
+      "stamp": "skver_01QmvDKS3Xw36kg1t2GDQcQr"
     },
     "./contexts/direction/agent.md": {
       "kind": "agent",
       "id": "agent_01KMwDJrK81CNBCXLSD4dseP",
-      "version": "2",
-      "hash": "5444a48302a0bcee80e6a67fb957062e",
-      "remote_hash": "50b10c21137e0fd38e3280db00de9158",
-      "stamp": "2"
+      "version": "3",
+      "hash": "3d1d9c4bd7dc0df3d96cb81b30c7004c",
+      "remote_hash": "0258faff49af6ef81ab46932d890ff4f",
+      "stamp": "3"
+    },
+    "./contexts/direction/agent_eval.md": {
+      "kind": "agent",
+      "id": "agent_01C9b6XXDVUUtGQZakLbtfyg",
+      "version": "1",
+      "hash": "75247c00faad4ab2601050a3979e823d",
+      "remote_hash": "88302f8dbaff7af3c2da447c293d948e",
+      "stamp": "1"
     },
     "./contexts/direction/skill": {
       "kind": "skill",
       "id": "skill_01Y9EPhVktRCX2wVDFM1AaVH",
       "version": "skver_01RE5pgiaxcPs2c6dYHkKsCK",
-      "hash": "25c7cab0b08df37833840baf7bedd7b5"
+      "hash": "25c7cab0b08df37833840baf7bedd7b5",
+      "stamp": "skver_01RE5pgiaxcPs2c6dYHkKsCK"
     },
     "./contexts/followup/skill": {
       "kind": "skill",
       "id": "skill_01T8CW3xP6KWXuDcfH3eyvmN",
       "version": "skver_01GgTS95wdEURDh8Pqheot4B",
-      "hash": "11ac73d54a1f758405d65463c3dac460"
+      "hash": "11ac73d54a1f758405d65463c3dac460",
+      "stamp": "skver_01GgTS95wdEURDh8Pqheot4B"
     },
     "./contexts/modeling/skill": {
       "kind": "skill",
       "id": "skill_01WyAvJqMwkLjfZqhem9VrPf",
       "version": "skver_01C81Z1PYGPze7L1fotPL66V",
-      "hash": "ce3af8580f0c19c994aa6fa0a76e8d51"
+      "hash": "ce3af8580f0c19c994aa6fa0a76e8d51",
+      "stamp": "skver_01C81Z1PYGPze7L1fotPL66V"
     },
     "./contexts/preparation/skill": {
       "kind": "skill",
       "id": "skill_01XezvSrs5VYJa6LzrqG8fLH",
       "version": "skver_01VU4ym2HgkFFsNZ5EspvuV8",
-      "hash": "7e89c5f976737b41ab7f7b3f3b42e8ec"
+      "hash": "7e89c5f976737b41ab7f7b3f3b42e8ec",
+      "stamp": "skver_01VU4ym2HgkFFsNZ5EspvuV8"
     },
     "./contexts/reporting/agent.md": {
       "kind": "agent",
@@ -84,7 +99,8 @@
       "kind": "skill",
       "id": "skill_01HGFp4rK5P849yefG48GpaE",
       "version": "skver_01Fu14FyenMR5YcPHZmPaXpa",
-      "hash": "8bdafb56cc9317ce98b8103b171ed304"
+      "hash": "8bdafb56cc9317ce98b8103b171ed304",
+      "stamp": "skver_01Fu14FyenMR5YcPHZmPaXpa"
     },
     "./contexts/review/agent.md": {
       "kind": "agent",
@@ -98,7 +114,8 @@
       "kind": "skill",
       "id": "skill_019A8SgnyqZH61WYgon5hQ27",
       "version": "skver_019XRJwEh2Z2NPFjYUm4Ut1a",
-      "hash": "aeb2dea9bee2521dc83c0ebb9beae013"
+      "hash": "aeb2dea9bee2521dc83c0ebb9beae013",
+      "stamp": "skver_019XRJwEh2Z2NPFjYUm4Ut1a"
     },
     "./contexts/vetting/agent.md": {
       "kind": "agent",
@@ -112,7 +129,8 @@
       "kind": "skill",
       "id": "skill_01ED6ZrKadeMEhrC9UhDVFMN",
       "version": "skver_01E6ZrRF4jJzwAm54sgoJfkX",
-      "hash": "8357c026cd35ec169c63e57aeea59b67"
+      "hash": "8357c026cd35ec169c63e57aeea59b67",
+      "stamp": "skver_01E6ZrRF4jJzwAm54sgoJfkX"
     },
     "./environment.yaml": {
       "kind": "environment",

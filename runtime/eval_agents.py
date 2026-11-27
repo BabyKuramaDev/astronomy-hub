@@ -47,7 +47,7 @@ def versions() -> dict[str, Any]:
     agents = {
         k: (v["id"], v.get("version"))
         for k, v in sorted(lock.items())
-        if k.endswith("agent.md") and "probe" not in k
+        if k.startswith("./contexts/") and re.search(r"/agent(_eval)?\.md$", k)
     }
     env = lock["./environment_eval.yaml"]
     trees = subprocess.run(
@@ -148,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     try:
         commit = pinned_commit()
-        director = resource("./contexts/direction/agent.md")
+        director = resource("./contexts/direction/agent_eval.md")
         environment = resource("./environment_eval.yaml")
     except RepoStateError as exc:
         print(f"error: {exc}", file=sys.stderr)
