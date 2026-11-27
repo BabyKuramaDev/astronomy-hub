@@ -113,7 +113,7 @@ def main() -> int:
             if not signal["detected"]:
                 continue
             on_period = abs(signal["period_days"] / star["period_days"] - 1) <= 0.01
-            inputs = load_inputs(Dossier(root), mission.detection.snr_min)
+            inputs = load_inputs(Dossier(root), mission.detection.sde_min)
             current = gate_odd_even(inputs, params, cfg.gates.odd_even)
             if star["group"] in PLANETS and not on_period:
                 continue
