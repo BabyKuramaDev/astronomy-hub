@@ -35,3 +35,21 @@ def test_budget_counts_sessions_in_flight(tmp_path: Path) -> None:
 def test_retryable(stop: str, status: str, events: str, expected: bool) -> None:
     out = Outcome(1, status)
     assert retryable({"stop_reason": stop}, out, json.dumps(events)) is expected
+
+
+def test_alarms_stop_the_run() -> None:
+    from runtime.eval_agents import check_alarm
+
+    planet = {"group": "planet_small", "period_days": 3.0}
+    fp = {"group": "false_positive", "period_days": 2.0}
+    assert check_alarm(planet, Outcome(1, "contaminated", flags=2), None)
+    assert "grave" in (
+        check_alarm(planet, Outcome(1, "ok", final="false_positive", period_days=3.01), None) or ""
+    )
+    assert (
+        check_alarm(planet, Outcome(1, "ok", final="false_positive", period_days=1.2), None) is None
+    )
+    accepted_a = Outcome(2, "ok", final="candidate", tier="A")
+    assert "tier A" in (check_alarm(fp, accepted_a, Outcome(2, "ok", final="inconclusive")) or "")
+    assert check_alarm(fp, accepted_a, Outcome(2, "ok", final="candidate", tier="A")) is None
+    assert check_alarm(fp, Outcome(2, "ok", final="candidate", tier="B"), None) is None

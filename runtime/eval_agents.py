@@ -16,7 +16,6 @@ import re
 import subprocess
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -24,7 +23,7 @@ from typing import Any
 from evals.index import Index, version_key
 from evals.outcomes import from_agent_run
 from evals.paths import evals_dir
-from evals.scoring import Outcome
+from evals.scoring import Outcome, period_match
 from evals.selection import pilot
 from runtime.audit import reaudit_run
 from runtime.checks import agent_names
@@ -147,6 +146,37 @@ def reaudit(index: Index, key: str, tics: set[int]) -> dict[int, str]:
     return changed
 
 
+def baseline_outcomes(root: Path, set_id: str, set_hash: str) -> dict[int, Outcome]:
+    """The baseline under the current dossier code, or its latest run if there is none."""
+    from evals.baseline import baseline_key, code_version
+
+    index = Index(root / "results" / set_id / "baseline.jsonl")
+    found = index.outcomes(baseline_key(set_hash, code_version()))
+    if found:
+        return found
+    rows = index.rows()
+    return index.outcomes(rows[-1]["key"]) if rows else {}
+
+
+def check_alarm(label: dict[str, Any], out: Outcome, base: Outcome | None) -> str | None:
+    """Stop the run on a contaminated session, a grave error (a planet rejected on its
+    catalog period) or a false positive reaching tier A that the baseline did not accept."""
+    if out.status == "contaminated":
+        return f"contaminated run ({out.flags} audit flags before decide)"
+    planet = label["group"] in ("planet_deep", "planet_small")
+    if (
+        planet
+        and out.final == "false_positive"
+        and period_match(out.period_days, label["period_days"])
+    ):
+        return "grave error: the planet rejected on its catalog period"
+    if label["group"] == "false_positive" and out.final == "candidate" and out.tier != "B":
+        base_a = base is not None and base.final == "candidate" and base.tier != "B"
+        if not base_a:
+            return "false positive accepted at tier A, not accepted by the baseline"
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m runtime.eval_agents")
     parser.add_argument("--set", default="v0.1", dest="set_id")
@@ -209,22 +239,46 @@ def main(argv: list[str] | None = None) -> int:
     )
     budget = Budget(ledger, args.cap_cents, args.budget_cents, args.milestone)
     stopped = None
-    with ThreadPoolExecutor(args.workers) as pool:
-        futures = {pool.submit(run_star, tic, base, budget, args.retries): tic for tic in todo}
-        for future in as_completed(futures):
-            tic = futures[future]
+    labels_by_tic = {st["tic_id"]: st for st in stars}
+    baseline = baseline_outcomes(root, args.set_id, labels["set_hash"])
+    alarms: list[str] = []
+    queue = list(todo)
+    lock = threading.Lock()
+
+    def worker() -> None:
+        nonlocal stopped
+        while True:
+            with lock:
+                if not queue or alarms or stopped:
+                    return
+                tic = queue.pop(0)
             try:
-                out, info = future.result()
+                out, info = run_star(tic, base, budget, args.retries)
             except SpendCapError as exc:
-                stopped = str(exc)
+                with lock:
+                    stopped = str(exc)
                 print(f"TIC {tic}: not started: {exc}", file=sys.stderr)
-                continue
+                return
             index.add(key, out, commit=commit, versions=ver, agent_names=agent_names(), **info)
+            alarm = check_alarm(labels_by_tic[tic], out, baseline.get(tic))
             print(
-                f"TIC {tic}: {out.status} {out.final or ''} {out.cost_cents / 100:.2f} USD "
-                f"flags={out.flags}",
+                f"TIC {tic}: {out.status} {out.final or ''} {out.tier or ''} "
+                f"{out.cost_cents / 100:.2f} USD flags={out.flags}"
+                + (f"  ALARM: {alarm}" if alarm else ""),
                 file=sys.stderr,
+                flush=True,
             )
+            if alarm:
+                with lock:
+                    alarms.append(f"TIC {tic}: {alarm}")
+
+    threads = [threading.Thread(target=worker) for _ in range(args.workers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    if alarms:
+        stopped = "stopped on alarm: " + "; ".join(alarms)
     print(
         json.dumps(
             {
