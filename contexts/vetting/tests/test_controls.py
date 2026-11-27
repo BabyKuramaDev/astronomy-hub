@@ -182,17 +182,3 @@ def test_coverage_passes_with_enough_transits_in_a_single_sector() -> None:
     assert "single sector" in outcome.note
     few = gate_spec("coverage").fn(one_sector(make_inputs(), end=1478.0), PARAMS, cfg)  # type: ignore[union-attr]
     assert few.status == "fail", few.note
-
-
-def test_holdout_on_a_single_sector_holds_out_transits() -> None:
-    cfg = CONFIG.gates.holdout
-    real = gate_spec("holdout").fn(one_sector(make_inputs()), PARAMS, cfg)  # type: ignore[union-attr]
-    assert real.status == "pass", real.note
-    assert real.metrics["n_held_out"] >= 3
-    assert "held out one at a time" in real.note
-    noise = gate_spec("holdout").fn(  # type: ignore[union-attr]
-        one_sector(make_inputs(odd_depth=0.0, even_depth=0.0)), PARAMS, cfg
-    )
-    assert noise.status == "fail", noise.note
-    few = gate_spec("holdout").fn(one_sector(make_inputs(), end=1474.0), PARAMS, cfg)  # type: ignore[union-attr]
-    assert few.status == "marginal", few.note

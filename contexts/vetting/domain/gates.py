@@ -134,19 +134,18 @@ def gate_snr(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome
 def gate_holdout(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
     """Train BLS on every sector but one, predict the held-out sector's transits.
 
-    The reference calls it leave-one-epoch-out; with several sectors it holds out a whole
-    sector. With a single sector it holds out one transit at a time (see _holdout_epochs).
+    The reference calls it leave-one-epoch-out; it holds out a whole sector.
     """
     duration = inputs.duration_hours / 24.0 * params.duration_scale
     weights = _weights(inputs)
     sectors = [int(s) for s in np.unique(inputs.sector)]
+    if len(sectors) < 2:
+        return GateOutcome("marginal", None, cfg.min_z, "needs at least two sectors")
     grid = np.linspace(
         inputs.period_days * (1 - cfg.period_window),
         inputs.period_days * (1 + cfg.period_window),
         cfg.n_periods,
     )
-    if len(sectors) < 2:
-        return _holdout_epochs(inputs, params, cfg, duration, weights, grid)
     zs: dict[str, float | None] = {}
     for held in sectors:
         train = inputs.sector != held
@@ -181,69 +180,6 @@ def gate_holdout(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
         f"held-out sectors: minimum Z {z_min:.1f} (need {cfg.min_z:g}), "
         f"mean Z {z_mean:.1f} (need {cfg.min_mean_z:g})",
         {**zs, "z_mean": _r(z_mean, 2)},
-    )
-
-
-def _holdout_epochs(
-    inputs: GateInputs,
-    params: MeasureParams,
-    cfg: Any,
-    duration: float,
-    weights: np.ndarray,
-    grid: np.ndarray,
-) -> GateOutcome:
-    """Single sector: hold out each transit in turn, train BLS on the others, and measure the
-    depth at the predicted time of the held-out one. A lone transit of a small planet does
-    not clear a threshold, so the held-out depths are combined into one statistic (their
-    inverse-variance mean over its standard error) and the threshold applies to that."""
-    win = signal_windows(inputs, params)
-    epochs = [int(e) for e in np.unique(win.epochs[win.in_transit])]
-    if len(epochs) < cfg.min_epochs:
-        return GateOutcome(
-            "marginal",
-            None,
-            cfg.min_mean_z,
-            f"a single sector with {len(epochs)} transits: fewer than "
-            f"{cfg.min_epochs}, nothing to train on",
-        )
-    dips = []
-    for held in epochs:
-        test = win.epochs == held
-        train = ~test
-        bls = BoxLeastSquares(inputs.time[train], inputs.flux[train], dy=inputs.flux_err[train])
-        result = bls.power(grid, duration, objective="snr")
-        best = int(np.nanargmax(result.power))
-        pred = windows(
-            inputs.time[test],
-            float(result.period[best]),
-            float(result.transit_time[best]),
-            duration,
-            params,
-        )
-        if pred.in_transit.sum() >= 1 and pred.baseline.sum() >= 2:
-            dip = weighted_dip(inputs.flux[test], weights[test], pred.in_transit, pred.baseline)
-            if dip is not None and dip.err_ppm > 0:
-                dips.append(dip)
-    if len(dips) < cfg.min_epochs:
-        return GateOutcome(
-            "marginal",
-            None,
-            cfg.min_mean_z,
-            f"only {len(dips)} held-out transits have data at the predicted "
-            f"time (need {cfg.min_epochs})",
-        )
-    w = np.array([1.0 / d.err_ppm**2 for d in dips])
-    depth = np.array([d.ppm for d in dips])
-    mean = float(np.sum(w * depth) / np.sum(w))
-    z = mean * math.sqrt(float(np.sum(w)))
-    ok = z >= cfg.min_mean_z
-    return GateOutcome(
-        "pass" if ok else "fail",
-        _r(z, 2),
-        cfg.min_mean_z,
-        f"a single sector: {len(dips)} transits held out one at a time; combined depth "
-        f"{mean:.0f} ppm, Z {z:.1f} (need {cfg.min_mean_z:g})",
-        {"n_held_out": float(len(dips)), "z_combined": _r(z, 2), "depth_ppm": _r(mean, 1)},
     )
 
 

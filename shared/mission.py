@@ -160,7 +160,6 @@ class HoldoutGate(GateBase):
     min_mean_z: PositiveFloat
     period_window: PositiveFloat  # relative half-width of the period grid around P
     n_periods: PositiveInt
-    min_epochs: Annotated[int, Field(ge=2)] = 3  # single sector: transits to hold out, at least
 
 
 class OddEvenGate(GateBase):
