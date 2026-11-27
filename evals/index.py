@@ -30,8 +30,11 @@ class Index:
             return []
         return [json.loads(x) for x in self.path.read_text().splitlines() if x.strip()]
 
-    def done(self, key: str) -> set[int]:
-        return {int(r["tic_id"]) for r in self.rows() if r["key"] == key}
+    def done(self, key: str, redo_incomplete: bool = False) -> set[int]:
+        """Stars finished under this key; with redo_incomplete, a star whose last run
+        ended without a decision counts as not done."""
+        last = {int(r["tic_id"]): r["outcome"]["status"] for r in self.rows() if r["key"] == key}
+        return {t for t, status in last.items() if not (redo_incomplete and status == "incomplete")}
 
     def outcomes(self, key: str) -> dict[int, Outcome]:
         """The last outcome of each star under this key."""

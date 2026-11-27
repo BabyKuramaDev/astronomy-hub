@@ -105,3 +105,12 @@ def test_index_resumes(tmp_path: Path) -> None:
     index.add(version_key(commit="b", tic_set="s"), ok(2, "candidate", 2.0))
     assert index.done(key) == {1}
     assert index.outcomes(key)[1].final == "candidate"
+
+
+def test_index_can_redo_incomplete(tmp_path: Path) -> None:
+    index = Index(tmp_path / "i.jsonl")
+    index.add("k", Outcome(1, "incomplete"))
+    index.add("k", Outcome(2, "incomplete"))
+    index.add("k", ok(2, "candidate", 2.0))  # redone later: the last row counts
+    assert index.done("k") == {1, 2}
+    assert index.done("k", redo_incomplete=True) == {2}
