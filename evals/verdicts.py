@@ -13,6 +13,7 @@ the Reviewer not reproducing). Then it scores two verdict rules:
 
 import glob
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,48 @@ def reason(gate: dict) -> str:
     return "other"
 
 
+NOT_EVALUABLE = {  # reasons that mean "could not be done for lack of data"
+    ("odd-even", "fewer than 2 odd or even transits"),
+    ("holdout", "a single sector"),
+    ("holdout", "fewer than 2 sectors with a transit"),
+    ("plausibility", "no stellar radius or mass"),
+    ("centroid", "too few centroid points"),
+    ("secondary", "too few events"),
+}
+COVERAGE_TRANSITS = re.compile(r"^(\d+) transits with data")
+
+
+def status_c(gate: dict, min_transits: int = 3) -> str:
+    """The gate's status under variant (c): not_evaluable for lack of data, and coverage
+    with min_transits or more (but fewer than its own minimum) as a soft marginal."""
+    if gate["status"] == "marginal" and (gate["id"], reason(gate)) in NOT_EVALUABLE:
+        return "not_evaluable"
+    if gate["id"] == "coverage" and gate["status"] == "fail":
+        m = COVERAGE_TRANSITS.match(gate["note"])
+        if m and int(m.group(1)) >= min_transits:
+            return "marginal"
+    return gate["status"]
+
+
+def tier_c(star: dict) -> str:
+    """Variant (c): A passes everything; B has no hard gate failing or marginal, a
+    reproduced signal, and only soft marginals or not-evaluable gates besides passes."""
+    final = star["decision"]["final"]
+    if final == "candidate":
+        return "A"
+    if final != "inconclusive" or star["vetting"] is None:
+        return final
+    if (star["review"] or {}).get("verdict") != "reproduced":
+        return "inconclusive"
+    for g in star["vetting"]["gates"]:
+        if g["severity"] == "info":
+            continue
+        st = status_c(g)
+        if st == "fail" or (g["severity"] == "hard" and st == "marginal"):
+            return "inconclusive"
+    return "B"
+
+
 def causes(star: dict) -> list[str]:
     v = star["vetting"] or {"gates": []}
     out = [
@@ -155,10 +198,11 @@ def main() -> int:
     for split in ("calib", "dev"):
         sub = [s for s in data if s["split"] == split]
         planets = [s for s in sub if s["group"] in PLANETS]
-        for rule, tiers in (("a", ("A",)), ("b", ("A",)), ("b", ("A", "B"))):
+        for rule, tiers in (("a", ("A",)), ("b", ("A", "B")), ("c", ("A", "B"))):
+            fn = tier_c if rule == "c" else tier
 
-            def ok(s: dict, tiers: tuple = tiers) -> bool:
-                return tier(s) in tiers
+            def ok(s: dict, tiers: tuple = tiers, fn: Any = fn) -> bool:
+                return fn(s) in tiers
 
             def on_period(s: dict) -> bool:
                 return bool(
@@ -180,8 +224,9 @@ def main() -> int:
                 f"{len(hit) / len(planets):.2f} ({len(hit)}) | {deep}/{n_deep} | "
                 f"{small}/{n_small} | {len(fp)} | {len(quiet)} |"
             )
-    b_fp = [s["tic_id"] for s in data if s["group"] == "false_positive" and tier(s) == "B"]
-    print(f"\nFalse positives that tier B would accept: {b_fp}")
+    for name, fn in (("b", tier), ("c", tier_c)):
+        added = [(s["tic_id"], s["group"], s["split"]) for s in data if fn(s) == "B"]
+        print(f"\nStars that tier B adds under ({name}): {added}")
     return 0
 
 

@@ -1,7 +1,14 @@
 # TIC {{ tic_id }}: {{ decision.final }}
 
 **Verdict: {{ verdict_text }}** (`decision.json`, mode `{{ decision.mode }}`).
-
+{% if decision.tier %}
+Candidate tier **{{ decision.tier }}**: {% if decision.tier == "A" %}every gate passed.{% else %}no hard gate failed or was in doubt, the independent analysis reproduced the signal, but some checks are soft doubts or could not be made.{% endif %}
+{% endif %}{% if decision.caveats or decision.n_transits %}
+Caveats (`decision.json`){% if decision.n_transits %}, from {{ decision.n_transits }} transits{% endif %}:
+{% for c in decision.caveats %}
+- {{ c }}
+{%- endfor %}
+{% endif %}
 {{ decision.reason }}
 
 **Next step** (`decision.json`): {{ decision.next_step }}

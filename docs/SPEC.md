@@ -238,7 +238,7 @@ Mismo patrón que `select-peak`: cada contexto con criterio tiene una tool que c
 
 | Contexto | Tool | Regla |
 | --- | --- | --- |
-| `vetting` | `conclude --rationale` | Combina las corridas de cada prueba (todas `pass` es `pass`, todas `fail` es `fail`, cualquier mezcla es `marginal`). Una prueba `hard` en `fail` da `false_positive`; una `soft` en `fail` o cualquier `marginal` da `inconclusive`; todo en `pass` da `candidate`. Las pruebas `info` no entran |
+| `vetting` | `conclude --rationale` | Combina las corridas de cada prueba (todas `pass` es `pass`, todas `fail` es `fail`, todas `not_evaluable` es `not_evaluable`, otra mezcla es `marginal`). Una prueba `hard` en `fail` da `false_positive`; todo en `pass` da `candidate` nivel A; sin prueba `hard` en `fail`, `marginal` ni `not_evaluable` y sin `soft` en `fail`, con solo `soft` en `marginal` o `not_evaluable`, da `candidate` nivel B; lo demás, `inconclusive`. `not_evaluable` es falta de datos (menos de 2 tránsitos pares o impares, un solo sector para el holdout, sin radio o masa estelar, pocos puntos de centroide); `marginal` es evidencia ambigua. `decide` copia el nivel y lista los reparos en `decision.json`. Las pruebas `info` no entran (fase A de M5) |
 | `review` | `conclude --rationale` | Período independiente dentro de `period_tolerance` y profundidad dentro de `depth_tolerance` de `signal.json` da `reproduced`; período dentro de la tolerancia con otra profundidad, o un alias entero del período, da `partial`; si no, `not_reproduced` |
 | `direction` | `decide --mode --reason` | La regla del Director de arriba; `next_step` sale de una plantilla de `mission.yaml` |
 
@@ -472,7 +472,7 @@ You establish whether this star or signal is already known. Run crossmatch first
 Abogado del diablo
 
 ```text
-Your job is to kill the candidate. Treat it as a false positive until the evidence says otherwise. Run run-gates. For every failed or marginal gate, rerun it with run-gate using different parameters to see whether the result holds. Any hard failure means false_positive. All gates passing means candidate. Marginal results mean inconclusive. Explain each gate in one sentence with its id. Never soften a failed gate.
+Your job is to kill the candidate. Treat it as a false positive until the evidence says otherwise. Run run-gates. For every failed or marginal gate, rerun it with run-gate using different parameters to see whether the result holds. Any hard failure means false_positive. The rule gives candidate tier A when every gate passes and tier B when the only doubts are soft gates marginal or not evaluable; a hard gate marginal or not evaluable means inconclusive. Explain each gate in one sentence with its id. Never soften a failed gate.
 ```
 
 Revisor independiente

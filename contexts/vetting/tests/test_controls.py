@@ -35,7 +35,7 @@ def vetting_verdict(statuses: dict[str, str]) -> str:
 
 def test_positive_control_passes_every_gate() -> None:
     statuses = run(make_inputs())
-    assert statuses.pop("catalog") == "marginal"  # no catalog.json: info only
+    assert statuses.pop("catalog") == "not_evaluable"  # no catalog.json: info only
     assert set(statuses.values()) == {"pass"}, statuses
     assert vetting_verdict(run(make_inputs())) == "candidate"
 
@@ -141,7 +141,7 @@ def test_detection_gate_uses_sde_only() -> None:
     low = fn(replace(base, sde=7.0, snr=40.0, inverted_snr_max=3.0), PARAMS, cfg)
     assert low.status == "fail"
     assert "below sde_min" in low.note
-    assert fn(replace(base, sde=None), PARAMS, cfg).status == "marginal"
+    assert fn(replace(base, sde=None), PARAMS, cfg).status == "not_evaluable"
 
 
 @pytest.mark.parametrize(

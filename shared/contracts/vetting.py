@@ -6,7 +6,12 @@ from pydantic import Field, PositiveInt, model_validator
 
 from shared.contracts._base import ContractModel, NonEmptyStr, Slug
 
-GateStatus = Literal["pass", "fail", "marginal"]
+# not_evaluable: the gate could not be done for lack of data (M5 phase A); marginal is
+# for ambiguous evidence.
+GateStatus = Literal["pass", "fail", "marginal", "not_evaluable"]
+# A: every gate passes. B: no hard gate failing, marginal or not evaluable, no soft gate
+# failing; only soft marginals or soft gates not evaluable (a single sector, for example).
+CandidateTier = Literal["A", "B"]
 # hard: a failure means false_positive; soft: a failure means inconclusive;
 # info: reported, never part of the verdict.
 GateSeverity = Literal["hard", "soft", "info"]
@@ -58,10 +63,13 @@ class VettingData(ContractModel):
     gates: Annotated[list[Gate], Field(min_length=1)]
     verdict: VettingVerdict
     rationale: NonEmptyStr
+    tier: CandidateTier | None = None  # set exactly when verdict is candidate (M5 phase A)
 
     @model_validator(mode="after")
     def _gate_ids_are_unique(self) -> Self:
         ids = [gate.id for gate in self.gates]
         if len(set(ids)) != len(ids):
             raise ValueError("gate ids must be unique")
+        if self.tier is not None and self.verdict != "candidate":
+            raise ValueError("only a candidate has a tier")
         return self

@@ -46,7 +46,16 @@ def pooled(labels: list[dict], outcomes: dict[int, Outcome]) -> dict[str, Any]:
         return outcomes[s["tic_id"]].final
 
     ok = [s for s in planets if final(s) == "candidate" and on_period(s)]
+    ok_a = [s for s in ok if outcomes[s["tic_id"]].tier != "B"]
     return {
+        "final_ok_a": len(ok_a),
+        "accepted_fp_a": {
+            s["tic_id"]
+            for s in labels
+            if s["group"] == "false_positive"
+            and final(s) == "candidate"
+            and outcomes[s["tic_id"]].tier != "B"
+        },
         "planets": len(planets),
         "final_ok": len(ok),
         "final_recall": round(len(ok) / len(planets), 3) if planets else None,
@@ -90,6 +99,8 @@ def verdict(stage: str, pa: dict[str, Any], pb: dict[str, Any], public: bool) ->
         f"- false detections on quiet stars: {fd_b} -> {fd_a}",
         f"- final recall on planets: {pb['final_recall']} -> {pa['final_recall']} "
         f"({pb['final_ok']} -> {pa['final_ok']} of {pa['planets']})",
+        f"- tier A only: final {pb['final_ok_a']} -> {pa['final_ok_a']} of {pa['planets']}; "
+        f"accepted false positives {len(pb['accepted_fp_a'])} -> {len(pa['accepted_fp_a'])}",
         f"- new accepted false positives: {len(new_fp)}{ids(new_fp)}",
         f"- grave errors: {len(pb['grave'])} -> {len(pa['grave'])}; new {len(new_grave)}"
         f"{ids(new_grave)}",

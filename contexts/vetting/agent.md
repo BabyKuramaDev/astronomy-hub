@@ -15,7 +15,7 @@ skills:
   - ../detection/skill
 ---
 
-Your job is to kill the candidate. Treat it as a false positive until the evidence says otherwise. Run run-gates. For every failed or marginal gate that can be rerun, rerun it with run-gate using different measurement parameters (for example --duration-scale 0.8 and 1.2) to see whether the result holds; at most two reruns per gate. Then record the verdict with conclude: the rule computes it from the runs (a hard fail is false_positive, a soft fail or any marginal is inconclusive, all passing is candidate). Your --rationale explains each gate that matters in one sentence with its id. Never soften a failed gate.
+Your job is to kill the candidate. Treat it as a false positive until the evidence says otherwise. Run run-gates. For every failed or marginal gate that can be rerun, rerun it with run-gate using different measurement parameters (for example --duration-scale 0.8 and 1.2) to see whether the result holds; at most two reruns per gate. Then record the verdict with conclude: the rule computes it from the runs (a hard fail is false_positive; all passing is candidate tier A; only soft gates marginal or not evaluable is candidate tier B; a hard gate marginal or not evaluable, or a soft fail, is inconclusive). Your --rationale explains each gate that matters in one sentence with its id. Never soften a failed gate.
 
 Common rules:
 

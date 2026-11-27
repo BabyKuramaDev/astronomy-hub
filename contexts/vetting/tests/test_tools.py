@@ -169,3 +169,34 @@ def test_eclipsing_binary_dossier_is_a_false_positive(
     assert Dossier(root(tmp_path)).read_envelope("vetting.json", VettingFile).data.verdict == (
         "false_positive"
     )
+
+
+@pytest.mark.parametrize(
+    ("gates", "expected", "level"),
+    [
+        ([("a", "pass", "hard"), ("b", "pass", "soft")], "candidate", "A"),
+        ([("a", "pass", "hard"), ("b", "not_evaluable", "soft")], "candidate", "B"),
+        ([("a", "pass", "hard"), ("b", "marginal", "soft")], "candidate", "B"),
+        ([("a", "not_evaluable", "hard"), ("b", "pass", "soft")], "inconclusive", None),
+        ([("a", "marginal", "hard"), ("b", "pass", "soft")], "inconclusive", None),
+        ([("a", "pass", "hard"), ("b", "fail", "soft")], "inconclusive", None),
+        ([("a", "fail", "hard"), ("b", "not_evaluable", "soft")], "false_positive", None),
+        ([("a", "pass", "hard"), ("c", "not_evaluable", "info")], "candidate", "A"),
+    ],
+)
+def test_candidate_tiers(
+    gates: list[tuple[str, str, str]], expected: str, level: str | None
+) -> None:
+    from contexts.vetting.domain.verdict import tier
+
+    statuses = [GateStatus(*g) for g in gates]
+    assert verdict(statuses) == expected
+    assert (tier(statuses) if expected == "candidate" else None) == level
+
+
+def test_not_evaluable_runs_are_ignored_when_others_measured() -> None:
+    from contexts.vetting.domain.verdict import combine
+
+    assert combine(["not_evaluable", "not_evaluable"]) == "not_evaluable"
+    assert combine(["not_evaluable", "pass"]) == "pass"
+    assert combine(["not_evaluable", "fail", "pass"]) == "marginal"

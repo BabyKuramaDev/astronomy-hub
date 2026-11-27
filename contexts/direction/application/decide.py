@@ -57,12 +57,33 @@ class Decide:
         except DecisionError as exc:
             raise InvalidInputError(str(exc)) from exc
         next_step = getattr(self.config.next_steps, final)
-        data = DecisionData(mode=mode, final=final, reason=reason.strip(), next_step=next_step)  # type: ignore[arg-type]
+        # A vetting.json from before tiers says candidate only when every gate passed: A.
+        level = (vetting.tier or "A") if final == "candidate" and vetting is not None else None
+        caveats = []
+        if vetting is not None:  # what could not be checked, and soft doubts
+            for g in vetting.gates:
+                if g.severity == "info":
+                    continue
+                if g.status == "not_evaluable":
+                    caveats.append(f"{g.id} not evaluable: {g.note}")
+                elif g.status == "marginal" and g.severity == "soft":
+                    caveats.append(f"{g.id} marginal: {g.note}")
+        data = DecisionData(
+            mode=mode,  # type: ignore[arg-type]
+            final=final,  # type: ignore[arg-type]
+            reason=reason.strip(),
+            next_step=next_step,
+            tier=level,
+            caveats=caveats,
+            n_transits=signal.n_transits if signal.detected else None,
+        )
         self.dossier.write_envelope(DECISION, self.meta.envelope(data, self.dossier.reads))
         return {
             "tic_id": self.meta.tic_id,
             "mode": mode,
             "final": final,
+            "tier": level,
+            "caveats": caveats,
             "basis": basis,
             "next_step": next_step,
             "file": DECISION,

@@ -5,7 +5,7 @@ from typing import Any
 
 from contexts.vetting.application.run_gates import RUNS
 from contexts.vetting.domain.gates import GATE_IDS
-from contexts.vetting.domain.verdict import GateStatus, combine, verdict
+from contexts.vetting.domain.verdict import GateStatus, combine, tier, verdict
 from shared.contracts import Gate, GateRunsFile, SignalFile, VettingData
 from shared.toolkit.dossier import Dossier
 from shared.toolkit.errors import InvalidInputError
@@ -56,12 +56,15 @@ class Conclude:
                     n_runs=len(mine),
                 )
             )
-        result = verdict([GateStatus(g.id, g.status, g.severity) for g in gates])
-        data = VettingData(gates=gates, verdict=result, rationale=rationale.strip())  # type: ignore[arg-type]
+        statuses = [GateStatus(g.id, g.status, g.severity) for g in gates]
+        result = verdict(statuses)
+        level = tier(statuses) if result == "candidate" else None
+        data = VettingData(gates=gates, verdict=result, rationale=rationale.strip(), tier=level)  # type: ignore[arg-type]
         self.dossier.write_envelope(VETTING, self.meta.envelope(data, self.dossier.reads))
         return {
             "tic_id": self.meta.tic_id,
             "verdict": result,
+            "tier": level,
             "gates": {
                 g.id: f"{g.status} ({g.severity}, {g.n_runs} run{'s' * (g.n_runs > 1)})"
                 for g in gates

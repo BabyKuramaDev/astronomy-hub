@@ -66,7 +66,7 @@ def gate_catalog(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
     cat = inputs.catalog
     if cat is None:
         return GateOutcome(
-            "marginal",
+            "not_evaluable",
             None,
             None,
             "catalog.json is not in the dossier (in eval mode Catalog runs last); "
@@ -117,7 +117,7 @@ def gate_detection(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateO
     }
     if inputs.sde is None:
         return GateOutcome(
-            "marginal",
+            "not_evaluable",
             None,
             inputs.sde_min,
             "signal.json has no SDE (written before M5): rerun select-peak",
@@ -143,7 +143,7 @@ def gate_holdout(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
     weights = _weights(inputs)
     sectors = [int(s) for s in np.unique(inputs.sector)]
     if len(sectors) < 2:
-        return GateOutcome("marginal", None, cfg.min_z, "needs at least two sectors")
+        return GateOutcome("not_evaluable", None, cfg.min_z, "needs at least two sectors")
     grid = np.linspace(
         inputs.period_days * (1 - cfg.period_window),
         inputs.period_days * (1 + cfg.period_window),
@@ -172,7 +172,7 @@ def gate_holdout(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
     measured = [z for z in zs.values() if z is not None]
     if len(measured) < 2:
         return GateOutcome(
-            "marginal", None, cfg.min_z, "fewer than two sectors cover a predicted transit", zs
+            "not_evaluable", None, cfg.min_z, "fewer than two sectors cover a predicted transit", zs
         )
     z_min, z_mean = min(measured), float(np.mean(measured))
     ok = z_min >= cfg.min_z and z_mean >= cfg.min_mean_z
@@ -232,7 +232,7 @@ def gate_odd_even(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOu
     even = _parity(inputs.flux, inputs.flux_err, epochs, core & (epochs % 2 == 0), baseline)
     if odd is None or even is None:
         return GateOutcome(
-            "marginal", None, cfg.fail_p, "fewer than two odd or two even transits to compare"
+            "not_evaluable", None, cfg.fail_p, "fewer than two odd or two even transits to compare"
         )
     v1, v2 = odd.se_ppm**2, even.se_ppm**2
     t = (odd.mean_ppm - even.mean_ppm) / math.sqrt(v1 + v2)
@@ -348,7 +348,7 @@ def gate_secondary(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateO
     )
     if primary is None or secondary is None or primary.ppm <= 0:
         return GateOutcome(
-            "marginal", None, cfg.min_sigma, "fewer than two primary or secondary events"
+            "not_evaluable", None, cfg.min_sigma, "fewer than two primary or secondary events"
         )
     sigma = secondary.snr
     bound, basis = max_occultation_ppm(inputs, primary.ppm, cfg)
@@ -472,7 +472,7 @@ def gate_plausibility(inputs: GateInputs, params: MeasureParams, cfg: Any) -> Ga
         )
     if not checks:
         return GateOutcome(
-            "marginal", None, None, "no stellar radius or mass in the TIC: nothing to check"
+            "not_evaluable", None, None, "no stellar radius or mass in the TIC: nothing to check"
         )
     if radius is None:
         checks.append(_Check("pass", "no stellar radius in the TIC: decided by the duration only"))
@@ -552,7 +552,7 @@ def gate_centroid(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOu
     real = _centroid_shift(inputs, inputs.epoch_btjd, duration, params)
     if real is None:
         return GateOutcome(
-            "marginal",
+            "not_evaluable",
             None,
             cfg.max_sigma,
             "not enough centroid measurements in and out of transit",
@@ -619,7 +619,7 @@ def gate_coherence(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateO
     total = weighted_dip(inputs.flux, weights, win.in_transit, win.baseline)
     if len(dips) < 3 or total is None:
         return GateOutcome(
-            "marginal", None, cfg.min_positive_fraction, "fewer than three transits measured"
+            "not_evaluable", None, cfg.min_positive_fraction, "fewer than three transits measured"
         )
     positive = sum(d.dip.ppm > 0 for d in dips) / len(dips)
     strongest = max(dips, key=lambda d: d.dip.snr).epoch

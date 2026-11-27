@@ -68,7 +68,7 @@ class MeasureParams:
 
 @dataclass(frozen=True)
 class GateOutcome:
-    status: str  # "pass" | "fail" | "marginal"
+    status: str  # "pass" | "fail" | "marginal" | "not_evaluable"
     value: float | None
     threshold: float | None
     note: str

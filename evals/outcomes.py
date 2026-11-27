@@ -50,6 +50,7 @@ def from_dossier(tic_id: int, root: Path | None, **extra: Any) -> Outcome:
         detected=bool(signal and signal["detected"]),
         period_days=signal.get("period_days") if signal else None,
         final=decision["final"],
+        tier=decision.get("tier") or ("A" if decision["final"] == "candidate" else None),
         vetting=vetting["verdict"] if vetting else None,
         review=review["verdict"] if review else None,
         fit=fit,

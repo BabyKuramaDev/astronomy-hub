@@ -30,6 +30,7 @@ class Outcome:
     flags: int = 0
     run: str | None = None
     fit: str | None = None  # fitted | failed | crashed (fit-transit raised)
+    tier: str | None = None  # a candidate's tier: A or B
 
 
 def period_match(found: float | None, catalog: float | None) -> bool:
@@ -67,10 +68,13 @@ class GroupStats:
     n: int = 0
     detected: int = 0
     final_ok: int = 0
+    final_ok_a: int = 0
     candidate_wrong_period: int = 0
     accepted_false_positive: int = 0
+    accepted_false_positive_a: int = 0
     rejected_false_positive: int = 0
     false_alarm: int = 0
+    false_alarm_a: int = 0
     detections_to_review: list[int] = field(default_factory=list)
     inconclusive: int = 0
     reproduced: int = 0
@@ -92,21 +96,27 @@ class GroupStats:
             (
                 "detection_recall",
                 "final_recall",
+                "final_recall_a",
                 "false_positive_rejected",
                 "false_positive_accepted",
+                "false_positive_accepted_a",
                 "no_signal_correct",
                 "false_alarm",
+                "false_alarm_a",
             )
         )
         if group in PLANETS:
             out["detection_recall"] = rate(self.detected)
             out["final_recall"] = rate(self.final_ok)
+            out["final_recall_a"] = rate(self.final_ok_a)
         elif group == "false_positive":
             out["false_positive_rejected"] = rate(self.rejected_false_positive)
             out["false_positive_accepted"] = rate(self.accepted_false_positive)
+            out["false_positive_accepted_a"] = rate(self.accepted_false_positive_a)
         else:
             out["no_signal_correct"] = rate(self.no_signal_correct)
             out["false_alarm"] = rate(self.false_alarm)
+            out["false_alarm_a"] = rate(self.false_alarm_a)
         out["inconclusive"] = rate(self.inconclusive)
         out["reproduced"] = rate(self.reproduced)
         return out
@@ -151,6 +161,7 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
         if group in PLANETS:
             st.detected += matched
             st.final_ok += out.final == "candidate" and matched
+            st.final_ok_a += out.final == "candidate" and out.tier != "B" and matched
             st.candidate_wrong_period += out.final == "candidate" and not matched
             if out.final == "false_positive":
                 if matched:  # grave: the real planet rejected on its catalog period
@@ -162,12 +173,14 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
                 aliases.append({"tic_id": tic, "group": group, "ratio": found})
         elif group == "false_positive":
             st.accepted_false_positive += out.final == "candidate"
+            st.accepted_false_positive_a += out.final == "candidate" and out.tier != "B"
             st.rejected_false_positive += out.final == "false_positive"
             st.fp_rejected_catalog_period += out.final == "false_positive" and matched
             st.fp_rejected_other_period += out.final == "false_positive" and not matched
             st.fp_not_detected += out.final == "no_signal"
         else:
             st.false_alarm += out.final == "candidate"
+            st.false_alarm_a += out.final == "candidate" and out.tier != "B"
             st.no_signal_correct += out.final == "no_signal"
             if out.detected:
                 st.detections_to_review.append(tic)
