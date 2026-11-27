@@ -85,7 +85,8 @@ vetting:
     catalog: {severity: info}
     coverage: {severity: soft, min_transits: 6}  # one sector is enough (M5 phase A)
     snr: {severity: soft}        # SNR >= detection.snr_min and above search.json inverted_snr_max
-    holdout: {severity: soft, min_z: 2.0, min_mean_z: 3.5, period_window: 0.0008, n_periods: 3000}
+    holdout: {severity: soft, min_z: 2.0, min_mean_z: 3.5, period_window: 0.0008, n_periods: 3000,
+              min_epochs: 3}  # one sector: hold out each transit, combined Z >= min_mean_z
     odd-even: {severity: hard, max_sigma: 2.5}
     secondary:
       severity: hard
