@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from shared.toolkit.errors import DataNotAvailableError
+from shared.toolkit.errors import DataNotAvailableError, ServiceUnavailableError
 from shared.toolkit.retry import RetryPolicy
 
 LC_SUFFIX = "_lc.fits"
@@ -46,8 +46,22 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     return out
 
 
-def _wrap_remote(action: str, exc: Exception) -> DataNotAvailableError:
-    return DataNotAvailableError(f"MAST {action} failed: {type(exc).__name__}: {exc}")
+def _wrap_remote(action: str, exc: Exception) -> ServiceUnavailableError:
+    """MAST failed or did not answer in time: transient, unlike data that does not exist."""
+    return ServiceUnavailableError(
+        f"MAST unavailable: {action} failed: {type(exc).__name__}: {exc}; rerun the tool once"
+    )
+
+
+def _timed[T](retry: RetryPolicy, call: Any) -> T:
+    """Run an astroquery MAST call with the policy's per-request timeout."""
+    from astroquery.mast import conf
+
+    timeout = retry.timeout_s()
+    if timeout is None:
+        return call()
+    with conf.set_temp("timeout", timeout):
+        return call()
 
 
 class MastLightcurveArchive:
@@ -61,12 +75,15 @@ class MastLightcurveArchive:
 
         try:
             return self.retry.call(
-                lambda: Observations.query_criteria(
-                    target_name=str(tic_id),
-                    obs_collection="TESS",
-                    dataproduct_type="timeseries",
-                    provenance_name=author,
-                    t_exptime=[exptime_s - 1, exptime_s + 1],
+                lambda: _timed(
+                    self.retry,
+                    lambda: Observations.query_criteria(
+                        target_name=str(tic_id),
+                        obs_collection="TESS",
+                        dataproduct_type="timeseries",
+                        provenance_name=author,
+                        t_exptime=[exptime_s - 1, exptime_s + 1],
+                    ),
                 )
             )
         except Exception as exc:
@@ -91,7 +108,9 @@ class MastLightcurveArchive:
             return {}
         try:
             mask = np.array([int(obsid) in wanted for obsid in obs["obsid"]])
-            products = self.retry.call(lambda: Observations.get_product_list(obs[mask]))
+            products = self.retry.call(
+                lambda: _timed(self.retry, lambda: Observations.get_product_list(obs[mask]))
+            )
         except Exception as exc:
             raise _wrap_remote("product list", exc) from exc
         dest.mkdir(parents=True, exist_ok=True)
@@ -108,12 +127,15 @@ class MastLightcurveArchive:
                 selection = products[products["productFilename"] == name]
                 try:
                     self.retry.call(
-                        lambda selection=selection: Observations.download_products(
-                            selection,
-                            download_dir=str(dest),
-                            flat=True,
-                            cache=True,
-                            verbose=False,
+                        lambda selection=selection: _timed(
+                            self.retry,
+                            lambda: Observations.download_products(
+                                selection,
+                                download_dir=str(dest),
+                                flat=True,
+                                cache=True,
+                                verbose=False,
+                            ),
                         )
                     )
                 except Exception as exc:
@@ -132,7 +154,11 @@ class MastTicCatalog:
         from astroquery.mast import Catalogs
 
         try:
-            rows = self.retry.call(lambda: Catalogs.query_criteria(catalog="Tic", ID=tic_id))
+            rows = self.retry.call(
+                lambda: _timed(
+                    self.retry, lambda: Catalogs.query_criteria(catalog="Tic", ID=tic_id)
+                )
+            )
         except Exception as exc:
             raise _wrap_remote("TIC query", exc) from exc
         if len(rows) != 1:
@@ -148,10 +174,13 @@ class MastTicCatalog:
 
         try:
             rows = self.retry.call(
-                lambda: Catalogs.query_region(
-                    SkyCoord(ra_deg, dec_deg, unit="deg"),
-                    radius=radius_arcsec * u.arcsec,
-                    catalog="Tic",
+                lambda: _timed(
+                    self.retry,
+                    lambda: Catalogs.query_region(
+                        SkyCoord(ra_deg, dec_deg, unit="deg"),
+                        radius=radius_arcsec * u.arcsec,
+                        catalog="Tic",
+                    ),
                 )
             )
         except Exception as exc:

@@ -28,6 +28,8 @@ class RetryConfig(ContractModel):
 
     attempts: PositiveInt
     backoff_s: NonNegativeFloat
+    request_timeout_s: PositiveFloat | None = None  # each request
+    deadline_s: PositiveFloat | None = None  # every request of one tool run, in total
 
 
 class SectorSelection(ContractModel):

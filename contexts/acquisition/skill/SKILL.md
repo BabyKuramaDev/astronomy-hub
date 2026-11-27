@@ -22,7 +22,7 @@ Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [opt
 
 ## Tools
 
-- `bin/hub acquisition fetch-lightcurves --tic <TIC>`: picks sectors by the mission rule (`acquisition.sector_selection`), downloads the 2-minute SPOC files and writes one table per sector plus `lightcurve/manifest.json`. Takes about a minute. Transient MAST errors are retried; exit 3 means MAST is unavailable or the star has no 2-minute data. Report it, do not work around it.
+- `bin/hub acquisition fetch-lightcurves --tic <TIC>`: picks sectors by the mission rule (`acquisition.sector_selection`), downloads the 2-minute SPOC files and writes one table per sector plus `lightcurve/manifest.json`. Takes about a minute and always returns within 4 minutes: it retries transient MAST errors itself and stops at its own deadline, so never wrap it in `timeout`. Exit 1 with "MAST unavailable" is transient: run the same command once more, plainly; if it fails again, report it. Exit 3 means the star has no 2-minute data: report it, do not work around it.
 - `bin/hub acquisition fetch-star --tic <TIC>`: writes `star.json` with stellar radius, mass, Teff and neighbors from the TIC. A parameter without an error in the TIC is null; that is expected.
 
 ## Reading the output

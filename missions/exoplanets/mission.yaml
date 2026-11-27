@@ -15,9 +15,11 @@ acquisition:
     rule: longest_consecutive_run
     max_sectors: 4
   neighbor_radius_arcsec: 63.0   # three TESS pixels of 21 arcsec
-  retry:                         # MAST: connection errors, timeouts and HTTP 5xx are retried
-    attempts: 4                  # waits of 2, 4 and 8 s; then exit 3
-    backoff_s: 2.0
+  retry:                         # MAST: connection errors, timeouts, HTTP 5xx and astroquery's
+    attempts: 4                  # RemoteServiceError are retried, waits of 2, 4 and 8 s; then
+    backoff_s: 2.0               # exit 1 "MAST unavailable" (exit 3 is only for no data)
+    request_timeout_s: 60.0      # a hung request no longer eats the sandbox's 295 s bash limit
+    deadline_s: 240.0            # the whole tool run returns before that limit
 
 preparation:
   detrend_method: biweight

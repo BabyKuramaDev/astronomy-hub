@@ -13,7 +13,12 @@ from shared.toolkit.retry import RetryPolicy
 
 def _retry(ctx: ToolContext) -> RetryPolicy:
     cfg = ctx.mission.acquisition.retry
-    return RetryPolicy(cfg.attempts, cfg.backoff_s)
+    return RetryPolicy(
+        cfg.attempts,
+        cfg.backoff_s,
+        deadline_s=cfg.deadline_s,
+        request_timeout_s=cfg.request_timeout_s,
+    )
 
 
 def fetch_lightcurves(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
