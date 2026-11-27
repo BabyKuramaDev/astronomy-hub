@@ -31,33 +31,32 @@
     "./contexts/detection/agent.md": {
       "kind": "agent",
       "id": "agent_01VCeKjRhYeAfa1b7iTU6NqJ",
-      "version": "2",
-      "hash": "1a58c292a648925e230509a5c8772062",
-      "remote_hash": "1d5004a46a2373afbff828a1e64f961a",
-      "stamp": "2"
+      "version": "3",
+      "hash": "2bd3c41c634397973e58d9c36053dbf4",
+      "remote_hash": "71201e2f18c3e5e0bf8dabff4f47c598",
+      "stamp": "3"
     },
     "./contexts/detection/skill": {
       "kind": "skill",
       "id": "skill_01Fdw6ts9m3tuxphMxVMSepd",
-      "version": "skver_01QmvDKS3Xw36kg1t2GDQcQr",
-      "hash": "4a103fdc9e6256dd63c18f6d5d81962f",
-      "stamp": "skver_01QmvDKS3Xw36kg1t2GDQcQr"
+      "version": "skver_016x6oHir6yC7bkoHoRSKJkT",
+      "hash": "eefdd5f6fad82a61fcc767c69cc78721"
     },
     "./contexts/direction/agent.md": {
       "kind": "agent",
       "id": "agent_01KMwDJrK81CNBCXLSD4dseP",
-      "version": "3",
-      "hash": "3d1d9c4bd7dc0df3d96cb81b30c7004c",
-      "remote_hash": "0258faff49af6ef81ab46932d890ff4f",
-      "stamp": "3"
+      "version": "4",
+      "hash": "35410cbe19e3b9236ff438cdc54553b9",
+      "remote_hash": "44860d1acb1ca5140719e65a89c77ee3",
+      "stamp": "4"
     },
     "./contexts/direction/agent_eval.md": {
       "kind": "agent",
       "id": "agent_01C9b6XXDVUUtGQZakLbtfyg",
-      "version": "1",
-      "hash": "75247c00faad4ab2601050a3979e823d",
-      "remote_hash": "88302f8dbaff7af3c2da447c293d948e",
-      "stamp": "1"
+      "version": "2",
+      "hash": "ae2e02a0f3512cedc88f947120346c85",
+      "remote_hash": "bf0d2e6f8e945484f9e00b620c5f5dd0",
+      "stamp": "2"
     },
     "./contexts/direction/skill": {
       "kind": "skill",
@@ -120,17 +119,16 @@
     "./contexts/vetting/agent.md": {
       "kind": "agent",
       "id": "agent_016YBFLxdcTFZ31y3kER96AW",
-      "version": "2",
-      "hash": "ba9333a18347309840d6b86037591254",
-      "remote_hash": "8afcffc4123ef53819c7b8f74ccf0ebe",
-      "stamp": "2"
+      "version": "3",
+      "hash": "15a3ae02bf07e4b2ac501fe6d9a8c120",
+      "remote_hash": "ae2adb35a760ac51956d47f840e1fbe8",
+      "stamp": "3"
     },
     "./contexts/vetting/skill": {
       "kind": "skill",
       "id": "skill_01ED6ZrKadeMEhrC9UhDVFMN",
-      "version": "skver_01E6ZrRF4jJzwAm54sgoJfkX",
-      "hash": "8357c026cd35ec169c63e57aeea59b67",
-      "stamp": "skver_01E6ZrRF4jJzwAm54sgoJfkX"
+      "version": "skver_01NWeuRxHz9RiACCjXP4ZawP",
+      "hash": "c48c774c8b8da5ac45932f2f812029d0"
     },
     "./environment.yaml": {
       "kind": "environment",
