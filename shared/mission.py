@@ -152,8 +152,7 @@ class GateBase(ContractModel):
 
 
 class CoverageGate(GateBase):
-    min_sectors: PositiveInt
-    min_transits: PositiveInt
+    min_transits: PositiveInt  # in one sector or several
 
 
 class HoldoutGate(GateBase):

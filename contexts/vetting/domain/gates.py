@@ -85,16 +85,20 @@ def gate_catalog(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
 
 
 def gate_coverage(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
+    """Enough transits with data, in one sector or several. Whether the signal shows up in
+    every sector, when there are several, is the coherence gate's job (gate 4)."""
     win = signal_windows(inputs, params)
     dips = per_transit_dips(inputs.flux, _weights(inputs), inputs.sector, win)
     sectors = sorted({d.sector for d in dips})
-    ok = len(sectors) >= cfg.min_sectors and len(dips) >= cfg.min_transits
+    ok = len(dips) >= cfg.min_transits
+    note = f"{len(dips)} transits with data in sectors {sectors}; need at least {cfg.min_transits}"
+    if ok and len(sectors) == 1:
+        note += "; a single sector, so repetition across sectors is not tested"
     return GateOutcome(
         "pass" if ok else "fail",
         float(len(dips)),
         float(cfg.min_transits),
-        f"{len(dips)} transits with data in sectors {sectors}; need at least "
-        f"{cfg.min_transits} transits in {cfg.min_sectors} sectors",
+        note,
         {"n_transits": float(len(dips)), "n_sectors": float(len(sectors))},
     )
 

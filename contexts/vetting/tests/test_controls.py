@@ -159,3 +159,26 @@ def test_a_failed_fit_makes_plausibility_marginal_not_fail() -> None:
     )
     assert outcome.status == "marginal", outcome.note
     assert "failed fit" in outcome.note
+
+
+def one_sector(inputs: GateInputs, end: float | None = None) -> GateInputs:
+    keep = inputs.sector == inputs.raw[0].sector
+    if end is not None:
+        keep &= inputs.time < end
+    return replace(
+        inputs,
+        time=inputs.time[keep],
+        flux=inputs.flux[keep],
+        flux_err=inputs.flux_err[keep],
+        sector=inputs.sector[keep],
+        raw=(inputs.raw[0],),
+    )
+
+
+def test_coverage_passes_with_enough_transits_in_a_single_sector() -> None:
+    cfg = CONFIG.gates.coverage
+    outcome = gate_spec("coverage").fn(one_sector(make_inputs()), PARAMS, cfg)  # type: ignore[union-attr]
+    assert outcome.status == "pass", outcome.note
+    assert "single sector" in outcome.note
+    few = gate_spec("coverage").fn(one_sector(make_inputs(), end=1478.0), PARAMS, cfg)  # type: ignore[union-attr]
+    assert few.status == "fail", few.note

@@ -347,7 +347,7 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 | # | Id | Prueba | Severidad | Pasa si |
 | --- | --- | --- | --- | --- |
 | 1 | `catalog` | Duplicado en catálogos de planetas, TOI y CTOI | `info` | No hay match con `period_match` en `catalog.json`; si no hay `catalog.json` (modo eval), queda `marginal` con nota y no entra al veredicto |
-| 2 | `coverage` | Cobertura en más de un sector | `soft` | ≥ 2 sectores y ≥ 6 tránsitos con datos |
+| 2 | `coverage` | Tránsitos suficientes con datos | `soft` | ≥ 6 tránsitos con datos, en uno o más sectores; con un solo sector, la nota dice que la repetición entre sectores no se prueba (eso es de la prueba 4 cuando hay varios). Cambiado en la fase A de M5: antes exigía ≥ 2 sectores |
 | 3 | `snr` | SNR combinado de BLS | `soft` | SNR ≥ `snr_min` (8) y SNR > `inverted_snr_max` |
 | 4 | `holdout` | Predicción a ciegas dejando un sector afuera (la referencia lo llama época) | `soft` | Z mínimo ≥ 2 y Z medio ≥ 3,5 en los sectores retenidos |
 | 5 | `odd-even` | Profundidad de tránsitos pares contra impares | `hard` | Diferencia < 2,5σ, con el error de cada grupo calculado dentro del grupo |
