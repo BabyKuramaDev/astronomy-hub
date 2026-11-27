@@ -9,9 +9,8 @@
     "./contexts/acquisition/skill": {
       "kind": "skill",
       "id": "skill_01EgdqsEEBYuSfLkNQ8UvuUe",
-      "version": "skver_01Bmt6NsuXQiW6GPt4cgxiJ2",
-      "hash": "3489f772ca60714f0b520a93e1733dce",
-      "stamp": "skver_01Bmt6NsuXQiW6GPt4cgxiJ2"
+      "version": "skver_018votkUNwWh1yW67xZssbFG",
+      "hash": "f97aa36f551b15991aa9f56ae7785e4b"
     },
     "./contexts/catalog/agent.md": {
       "kind": "agent",
@@ -31,32 +30,33 @@
     "./contexts/detection/agent.md": {
       "kind": "agent",
       "id": "agent_01VCeKjRhYeAfa1b7iTU6NqJ",
-      "version": "3",
-      "hash": "2bd3c41c634397973e58d9c36053dbf4",
-      "remote_hash": "71201e2f18c3e5e0bf8dabff4f47c598",
-      "stamp": "3"
+      "version": "4",
+      "hash": "fa49690161264c40a6c1fd76ee62eb7d",
+      "remote_hash": "0001b3141c7a14c044c4f3736b8490ab",
+      "stamp": "4"
     },
     "./contexts/detection/skill": {
       "kind": "skill",
       "id": "skill_01Fdw6ts9m3tuxphMxVMSepd",
       "version": "skver_016x6oHir6yC7bkoHoRSKJkT",
-      "hash": "eefdd5f6fad82a61fcc767c69cc78721"
+      "hash": "eefdd5f6fad82a61fcc767c69cc78721",
+      "stamp": "skver_016x6oHir6yC7bkoHoRSKJkT"
     },
     "./contexts/direction/agent.md": {
       "kind": "agent",
       "id": "agent_01KMwDJrK81CNBCXLSD4dseP",
-      "version": "4",
-      "hash": "35410cbe19e3b9236ff438cdc54553b9",
-      "remote_hash": "44860d1acb1ca5140719e65a89c77ee3",
-      "stamp": "4"
+      "version": "5",
+      "hash": "e0661ab0a9829bd1e68f7604dcbe06d6",
+      "remote_hash": "02fd3f74fa6ff85fe4ee80479b3bb073",
+      "stamp": "5"
     },
     "./contexts/direction/agent_eval.md": {
       "kind": "agent",
       "id": "agent_01C9b6XXDVUUtGQZakLbtfyg",
-      "version": "2",
-      "hash": "ae2e02a0f3512cedc88f947120346c85",
-      "remote_hash": "bf0d2e6f8e945484f9e00b620c5f5dd0",
-      "stamp": "2"
+      "version": "3",
+      "hash": "2b159743795ef9b5571c4851e3bc08b4",
+      "remote_hash": "76abd4af4fdca237f5265ff13fa2334a",
+      "stamp": "3"
     },
     "./contexts/direction/skill": {
       "kind": "skill",
@@ -128,7 +128,8 @@
       "kind": "skill",
       "id": "skill_01ED6ZrKadeMEhrC9UhDVFMN",
       "version": "skver_01NWeuRxHz9RiACCjXP4ZawP",
-      "hash": "c48c774c8b8da5ac45932f2f812029d0"
+      "hash": "c48c774c8b8da5ac45932f2f812029d0",
+      "stamp": "skver_01NWeuRxHz9RiACCjXP4ZawP"
     },
     "./environment.yaml": {
       "kind": "environment",
