@@ -347,6 +347,20 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 - Un error grave es solo un planeta descartado en su período de catálogo; una señal espuria descartada en una estrella con planeta es una detección perdida.
 - Inconclusos por causa (`evals.verdicts`, sobre los resultados guardados): en los 30 planetas inconclusos de calibración dominan los pocos tránsitos (cobertura con menos de 6 tránsitos en 19, un solo sector en 16, menos de 2 tránsitos pares o impares en 13); el Revisor no reproduce en 4 y da `partial` en 3; par-impar por p de Welch solo en 2. En los 33 falsos positivos inconclusos dominan plausibilidad `marginal` (19: sin radio o masa en el TIC, o intervalo que cruza el máximo), un solo sector (13) y centroide `marginal` (12).
 - Variantes de la regla de veredicto evaluadas sin volver a correr: (a) la actual; (b) dos niveles, A si pasa todo y B si no hay prueba dura en `fail` ni `marginal`, ninguna blanda en `fail`, el Revisor reproduce y solo hay blandas `marginal`. En calibración, A: recall final 0,32 (19 de 60), 3 falsos positivos aceptados; A+B: 0,38 (23), 4 aceptados. En desarrollo no cambia (0,50, 0 aceptados). Las 5 estrellas que suma B tienen como única marginal el holdout de un solo sector.
+- Regla elegida: la (b) con el estado `not_evaluable`. La variante (c), que además admitía en B pruebas duras `not_evaluable` y la cobertura de 3 a 5 tránsitos como blanda `marginal`, subía el recall final de calibración a 0,63 pero aceptaba 10 de 60 falsos positivos (7 por plausibilidad sin radio ni masa estelar), por encima del tope del 10%. Implementada y medida, la (b) reproduce la evaluación sobre resultados guardados: nivel A igual que antes, A+B suma 4 planetas de un solo sector y 1 falso positivo en calibración.
+- Objetivos (piso de regresión para el reservado y para las corridas con agentes, recalculados con la regla (b); entre paréntesis el baseline de calibración / desarrollo):
+
+  | Grupo | Métrica | Piso |
+  | --- | --- | --- |
+  | Planetas profundos | recall de detección | ≥ 0,75 (0,83 / 0,83) |
+  | Planetas profundos | recall final A / A+B | ≥ 0,30 / ≥ 0,33 (0,33 y 0,37 / 0,67 y 0,67) |
+  | Planetas chicos | recall de detección | ≥ 0,65 (0,80 / 0,50) |
+  | Planetas chicos | recall final A / A+B | ≥ 0,25 / ≥ 0,33 (0,30 y 0,40 / 0,33 y 0,33) |
+  | Falsos positivos | aceptados A / A+B | ≤ 0,07 / ≤ 0,10 (0,05 y 0,07 / 0 y 0) |
+  | Sin señal | falsas alarmas A / A+B | 0 / a lo sumo 1 de cada 10 (0 / 0) |
+  | Todos | errores graves | 0 |
+
+  En el reservado (4 profundos, 4 chicos, 8 falsos positivos, 4 sin señal) cada estrella mueve entre 12 y 25 puntos: se lee como "no peor que el baseline por más de una estrella". Los objetivos iniciales de la tabla Métricas (90% de detección, 80% de recall final) quedan como meta de largo plazo: con estas reglas, cerca de dos tercios de los planetas inconclusos lo son por pocos tránsitos o un solo sector.
 - Ideas pendientes, sin implementar (fase A cerrada sin ellas):
   - Límite de duraciones con k de la profundidad: hoy la cota usa `rp_rs_max = 0,3`, y para una señal de 60 ppm un k tan grande admite duraciones de órbitas que rozan la estrella (TIC 29253938 sigue detectada a P = 0,543 d con 4 h). Una cota con k ≈ √profundidad (con margen) descartaría esos picos.
   - Centroide por imagen diferencia (PRF sobre la diferencia en tránsito menos fuera de tránsito, desde los TPF), aplicado solo a las estrellas que terminarían en `candidate` (ver Riesgos).
