@@ -57,6 +57,6 @@ eval-dev:
 eval-holdout:
 	@test -n "$(CAP)" || (echo "make eval-holdout needs CAP=<cents>, its own spend cap" >&2; exit 2)
 	uv run python -m evals.baseline --set v0.1 --splits holdout --quiet
-	uv run python -m evals.scorer baseline --splits holdout --aggregate-only
 	uv run python -m runtime.eval_agents --split holdout --milestone M4-holdout --cap-cents $(CAP) --quiet
+	uv run python -m evals.scorer baseline --splits holdout --aggregate-only
 	uv run python -m evals.scorer agents --splits holdout --aggregate-only
