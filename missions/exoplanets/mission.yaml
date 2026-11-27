@@ -99,7 +99,12 @@ vetting:
     coverage: {severity: soft, min_transits: 6}  # one sector is enough (M5 phase A)
     snr: {severity: soft}        # SNR >= detection.snr_min and above search.json inverted_snr_max
     holdout: {severity: soft, min_z: 2.0, min_mean_z: 3.5, period_window: 0.0008, n_periods: 3000}
-    odd-even: {severity: hard, max_sigma: 2.5}
+    # Welch's t on per-transit depths, each group's error the larger of photometric and
+    # scatter between transits (M5 phase A: the normal 2.5 sigma rule rejected 3 confirmed
+    # planets with 2 to 7 transits per group; their Welch p are 0.022 to 0.11, while the
+    # false positives it rejects have p from 6e-10 to 1.6e-3). fail_p is the two-sided
+    # normal 3 sigma.
+    odd-even: {severity: hard, fail_p: 0.0027, marginal_p: 0.05}
     secondary:
       severity: hard
       min_sigma: 2.5

@@ -167,7 +167,11 @@ class HoldoutGate(GateBase):
 
 
 class OddEvenGate(GateBase):
-    max_sigma: PositiveFloat
+    """Welch's t p-value of the odd and even depths: fail below fail_p, marginal below
+    marginal_p."""
+
+    fail_p: Annotated[float, Field(gt=0, lt=1)]
+    marginal_p: Annotated[float, Field(gt=0, lt=1)]
 
 
 class SecondaryGate(GateBase):

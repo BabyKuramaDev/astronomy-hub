@@ -26,7 +26,7 @@ from contexts.vetting.domain.photometry import (
     windows,
 )
 from shared.contracts import Measurement
-from shared.kernel.transits import odd_even, phase_days
+from shared.kernel.transits import phase_days
 
 RJUP_IN_REARTH = float((constants.R_jup / constants.R_earth).decompose().value)
 RSUN_IN_REARTH = float((constants.R_sun / constants.R_earth).decompose().value)
@@ -41,6 +41,7 @@ RAW_MULTIPLES = (1.0 / 3.0, 0.5, 1.0, 2.0)
 CLEAN_MULTIPLES = (0.2, 0.25, 1.0 / 3.0, 0.4, 0.5, 2.0 / 3.0, 1.0)
 JOINT_HARMONICS = 4
 # Centroid detrending (reference): running median of up to 101 cadences.
+ODD_EVEN_MIN_POINTS = 3  # points in a transit's core to measure its depth
 CENTROID_KERNEL_MAX = 101
 CENTROID_MIN_POINTS = 55
 
@@ -186,37 +187,71 @@ def gate_holdout(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOut
 # 5 odd-even ------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _Parity:
+    n: int
+    mean_ppm: float
+    se_ppm: float  # the larger of the photometric error and the scatter between transits
+
+
+def _parity(
+    flux: np.ndarray, err: np.ndarray, epochs: np.ndarray, mask: np.ndarray, baseline: float
+) -> _Parity | None:
+    depths, phot = [], []
+    for ep in np.unique(epochs[mask]):
+        members = mask & (epochs == ep)
+        n = int(members.sum())
+        if n >= ODD_EVEN_MIN_POINTS:
+            depths.append((baseline - float(flux[members].mean())) * 1e6)
+            phot.append(math.sqrt(float(np.sum(err[members] ** 2))) / n * 1e6)
+    if len(depths) < 2:
+        return None
+    d = np.array(depths)
+    se_phot = math.sqrt(float(np.sum(np.square(phot)))) / d.size
+    se_scatter = float(d.std(ddof=1) / math.sqrt(d.size))
+    return _Parity(d.size, float(d.mean()), max(se_phot, se_scatter, 1e-9))
+
+
 def gate_odd_even(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
-    """Same criterion as detection's fold: per-transit depths, each group's own scatter."""
+    """Odd and even depths, transit by transit, compared with Welch's t: each group's error
+    is the larger of its photometric error and the scatter between its transits, and the
+    Welch-Satterthwaite degrees of freedom make few transits need more evidence (with two
+    or three transits per group a normal 4 sigma is not what it seems). Fails below fail_p,
+    marginal below marginal_p."""
+    from scipy import stats
+
     duration = inputs.duration_hours / 24.0 * params.duration_scale
     phase = phase_days(inputs.time, inputs.period_days, inputs.epoch_btjd)
     out = np.abs(phase) > duration
     baseline = float(np.median(inputs.flux[out])) if out.any() else 1.0
     core = np.abs(phase) < 0.25 * duration
     epochs = np.rint((inputs.time - inputs.epoch_btjd) / inputs.period_days).astype(np.int64)
-    split = odd_even(inputs.flux, epochs, core, baseline, min_points=3)
-    metrics = {
-        "odd_ppm": _r(split.odd.value_ppm, 1),
-        "even_ppm": _r(split.even.value_ppm, 1),
-        "n_odd": float(split.odd.n_transits),
-        "n_even": float(split.even.n_transits),
-    }
-    if split.difference_sigma is None:
+    odd = _parity(inputs.flux, inputs.flux_err, epochs, core & (epochs % 2 == 1), baseline)
+    even = _parity(inputs.flux, inputs.flux_err, epochs, core & (epochs % 2 == 0), baseline)
+    if odd is None or even is None:
         return GateOutcome(
-            "marginal",
-            None,
-            cfg.max_sigma,
-            "fewer than two odd or two even transits to compare",
-            metrics,
+            "marginal", None, cfg.fail_p, "fewer than two odd or two even transits to compare"
         )
-    sigma = split.difference_sigma
+    v1, v2 = odd.se_ppm**2, even.se_ppm**2
+    t = (odd.mean_ppm - even.mean_ppm) / math.sqrt(v1 + v2)
+    dof = (v1 + v2) ** 2 / (v1**2 / (odd.n - 1) + v2**2 / (even.n - 1))
+    p = float(2.0 * stats.t.sf(abs(t), dof))
+    status = "fail" if p < cfg.fail_p else "marginal" if p < cfg.marginal_p else "pass"
     return GateOutcome(
-        "fail" if sigma >= cfg.max_sigma else "pass",
-        _r(sigma, 2),
-        cfg.max_sigma,
-        f"odd {split.odd.value_ppm:.0f} ppm vs even {split.even.value_ppm:.0f} ppm: "
-        f"{sigma:.1f} sigma apart",
-        metrics,
+        status,
+        _r(p, 6),
+        cfg.fail_p,
+        f"odd {odd.mean_ppm:.0f} ppm ({odd.n} transits) vs even {even.mean_ppm:.0f} ppm "
+        f"({even.n}): Welch t {t:.2f} with {dof:.1f} degrees of freedom, p {p:.2g} "
+        f"(fail below {cfg.fail_p:g}, marginal below {cfg.marginal_p:g})",
+        {
+            "odd_ppm": _r(odd.mean_ppm, 1),
+            "even_ppm": _r(even.mean_ppm, 1),
+            "n_odd": float(odd.n),
+            "n_even": float(even.n),
+            "t": _r(t, 3),
+            "dof": _r(dof, 2),
+        },
     )
 
 

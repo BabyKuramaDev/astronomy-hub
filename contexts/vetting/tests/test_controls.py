@@ -216,3 +216,17 @@ def test_centroid_without_a_possible_source_is_only_marginal() -> None:
     statuses = run(inputs)
     assert statuses["centroid"] == "marginal", statuses
     assert vetting_verdict(statuses) == "inconclusive"
+
+
+def test_odd_even_uses_welch_and_asks_more_of_few_transits() -> None:
+    cfg = CONFIG.gates.odd_even
+    gate = gate_spec("odd-even").fn  # type: ignore[union-attr]
+    eb = gate(make_inputs(odd_depth=950e-6, even_depth=200e-6), PARAMS, cfg)
+    assert eb.status == "fail", eb.note
+    assert eb.value < cfg.fail_p
+    # Two odd and two even transits 30 percent apart: not enough to call it a binary.
+    few = gate(
+        one_sector(make_inputs(odd_depth=560e-6, even_depth=400e-6), end=1481.5), PARAMS, cfg
+    )
+    assert few.metrics["n_odd"] + few.metrics["n_even"] <= 5
+    assert few.status != "fail", few.note
