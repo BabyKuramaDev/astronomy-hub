@@ -102,13 +102,18 @@ def shuffled(stars: Sequence[Star], seed: int, group: str) -> list[Star]:
     return order
 
 
-def split(chosen: dict[str, list[Star]]) -> list[dict]:
-    """Development or holdout, in the shuffled order, with the quotas of QUOTAS."""
+def split(
+    chosen: dict[str, list[Star]],
+    quotas: dict[str, tuple[int, int]] = QUOTAS,
+    labels: tuple[str, str] = ("dev", "holdout"),
+) -> list[dict]:
+    """The first quota[1] stars of each group (shuffled order) get labels[0], the rest
+    labels[1]: development and holdout for v0.1; all calib for the calibration set."""
     rows = []
     for group, stars in chosen.items():
-        _total, dev = QUOTAS[group]
+        _total, first = quotas[group]
         for k, star in enumerate(stars):
-            rows.append({**asdict(star), "split": "dev" if k < dev else "holdout"})
+            rows.append({**asdict(star), "split": labels[0] if k < first else labels[1]})
     return sorted(rows, key=lambda r: (r["group"], r["tic_id"]))
 
 

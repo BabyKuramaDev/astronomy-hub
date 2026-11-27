@@ -1,7 +1,8 @@
 """Build the eval set from public catalogs, with a fixed seed (network; run by hand).
 
-    uv run python -m evals.build_set                  # query the catalogs and MAST
-    uv run python -m evals.build_set --from-snapshot  # rebuild from the saved answers
+    uv run python -m evals.build_set [--set v0.1]          # query the catalogs and MAST
+    uv run python -m evals.build_set --from-snapshot      # rebuild from the saved answers
+    uv run python -m evals.build_set --set v0.1-calib     # calibration set (baseline only)
 
 Writes <evals_dir>/sets/<set_id>/: set.json (stars, group, split, catalog period and
 depth) and snapshot/ (every raw answer: the TOI and pscomppars tables, the CTOI list,
@@ -30,8 +31,23 @@ from shared.mission import load_mission
 from shared.toolkit.caches import isolated_caches
 from shared.toolkit.retry import RetryPolicy
 
-SET_ID = "v0.1"
-SEED = 20261127
+# v0.1: development and holdout. v0.1-calib: calibration set for the rules (baseline only),
+# same filters and catalog snapshot, none of v0.1's stars; a group may come up short.
+PROFILES: dict[str, dict[str, Any]] = {
+    "v0.1": {"seed": 20261127, "quotas": QUOTAS, "labels": ("dev", "holdout")},
+    "v0.1-calib": {
+        "seed": 20261128,
+        "quotas": {
+            "planet_deep": (30, 30),
+            "planet_small": (30, 30),
+            "false_positive": (60, 60),
+            "no_signal": (30, 30),
+        },
+        "labels": ("calib", "calib"),
+        "base": "v0.1",  # reuse its catalog snapshot and exclude its stars
+        "allow_short": True,
+    },
+}
 TAP = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
 TOI_QUERY = "select tid,toi,tfopwg_disp,pl_orbper,pl_trandep,st_tmag from toi"
 PLANET_QUERY = "select pl_name,tic_id,hostname from pscomppars where tic_id is not null"
@@ -54,12 +70,15 @@ def canonical(payload: Any) -> bytes:
 class Snapshot:
     """Every raw answer goes through here: saved when online, read back when offline."""
 
-    def __init__(self, root: Path, offline: bool) -> None:
-        self.root, self.offline = root, offline
+    def __init__(self, root: Path, offline: bool, base: Path | None = None) -> None:
+        self.root, self.offline, self.base = root, offline, base
         root.mkdir(parents=True, exist_ok=True)
 
     def get(self, name: str, fetch: Callable[[], Any], meta: dict[str, str]) -> Any:
         path = self.root / f"{name}.json"
+        if not path.exists() and self.base is not None and (self.base / f"{name}.json").exists():
+            path.parent.mkdir(parents=True, exist_ok=True)  # same answer, same date
+            path.write_text((self.base / f"{name}.json").read_text())
         if path.exists():
             return json.loads(path.read_text())["data"]
         if self.offline:
@@ -132,13 +151,18 @@ def sector_targets(sector: int) -> list[int]:
     return sorted({int(r["target_name"]) for r in obs if str(r["target_name"]).isdigit()})
 
 
-def build(out: Path, offline: bool) -> dict[str, Any]:
+def build(out: Path, offline: bool, set_id: str = "v0.1") -> dict[str, Any]:
+    profile = PROFILES[set_id]
+    quotas, seed = profile["quotas"], profile["seed"]
     mission = load_mission("exoplanets").detection
-    snap = Snapshot(out / "snapshot", offline)
+    base = out.parent / profile["base"] if "base" in profile else None
+    snap = Snapshot(out / "snapshot", offline, base / "snapshot" if base else None)
     tois = snap.get("toi", tap(TOI_QUERY), {"query": TOI_QUERY, "source": TAP})
     planets = snap.get("pscomppars", tap(PLANET_QUERY), {"query": PLANET_QUERY, "source": TAP})
     ctois = set(snap.get("ctoi", ctoi_tics, {"source": CTOI_URL}))
     excluded = {int(WASP18["tic_id"])}
+    if base is not None:
+        excluded |= {int(s["tic_id"]) for s in json.loads((base / "set.json").read_text())["stars"]}
     pools = candidates(
         tois, planets, ctois, excluded, mission.period_min_days, mission.period_max_days
     )
@@ -161,9 +185,9 @@ def build(out: Path, offline: bool) -> dict[str, Any]:
 
     chosen: dict[str, list[Star]] = {}
     rejected: dict[str, list[dict[str, Any]]] = {}
-    for group, (quota, _dev) in QUOTAS.items():
+    for group, (quota, _dev) in quotas.items():
         chosen[group], rejected[group] = [], []
-        for star in shuffled(pools[group], SEED, group):
+        for star in shuffled(pools[group], seed, group):
             if len(chosen[group]) == quota:
                 break
             check = snap.get(
@@ -185,21 +209,22 @@ def build(out: Path, offline: bool) -> dict[str, Any]:
                 chosen[group].append(star)
             else:
                 rejected[group].append({"tic_id": star.tic_id, **check})
-        if len(chosen[group]) < quota:
+        if len(chosen[group]) < quota and not profile.get("allow_short"):
             raise SystemExit(f"only {len(chosen[group])} stars qualify for {group}")
-    stars = split(chosen)
+    stars = split(chosen, quotas, profile["labels"])
     body = {
-        "set_id": SET_ID,
-        "seed": SEED,
+        "set_id": set_id,
+        "seed": seed,
         "no_signal_sector": NO_SIGNAL_SECTOR,
         "filters": {
             "period_min_days": mission.period_min_days,
             "period_max_days": mission.period_max_days,
             "min_transits": mission.min_transits,
             "excluded": sorted(excluded),
-            "quotas": QUOTAS,
+            "quotas": quotas,
         },
         "stars": stars,
+        **({"base_set": profile["base"]} if "base" in profile else {}),
     }
     digest = "sha256:" + hashlib.sha256(canonical(body)).hexdigest()
     (out / "set.json").write_text(
@@ -207,7 +232,8 @@ def build(out: Path, offline: bool) -> dict[str, Any]:
     )
     (out / "rejected.json").write_text(json.dumps(rejected, indent=1, sort_keys=True) + "\n")
     return {
-        "set_id": SET_ID,
+        "set_id": set_id,
+        "per_group": {g: len(c) for g, c in chosen.items()},
         "set_hash": digest,
         "stars": len(stars),
         "rejected": {g: len(r) for g, r in rejected.items()},
@@ -239,16 +265,17 @@ def build_commit() -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m evals.build_set")
     parser.add_argument("--from-snapshot", action="store_true", help="no network: reuse answers")
+    parser.add_argument("--set", default="v0.1", choices=sorted(PROFILES), dest="set_id")
     args = parser.parse_args(argv)
     root = evals_dir()
-    out = root / "sets" / SET_ID
+    out = root / "sets" / args.set_id
     with tempfile.TemporaryDirectory() as tmp, isolated_caches(Path(tmp) / ".cache"):
-        result = build(out, offline=args.from_snapshot)
+        result = build(out, offline=args.from_snapshot, set_id=args.set_id)
     result["build_commit"] = build_commit()
     if not args.from_snapshot:
         commit_snapshot(
             root,
-            f"Build set {SET_ID} ({result['set_hash'][:19]}) with build_set at "
+            f"Build set {args.set_id} ({result['set_hash'][:19]}) with build_set at "
             f"{result['build_commit']}",
         )
     print(json.dumps(result, indent=2), file=sys.stdout)
