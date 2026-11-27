@@ -21,6 +21,7 @@ import tempfile
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,7 @@ NO_SIGNAL_SECTOR = 92  # a recent sector; its SPOC 120 s targets feed the no-sig
 SECTOR_DAYS = 27.4  # nominal length of a TESS sector, only for the expected-transits filter
 SINGLE_SECTOR = re.compile(r"^tess\d{13}-s(?P<sector>\d{4})-\d{16}-\d{4}-s$")
 RETRY = RetryPolicy(4, 2.0)
+PREFETCH_WORKERS = 4
 WASP18 = json.loads((REPO / "tests" / "fixtures" / "wasp18" / "reference.json").read_text())
 
 
@@ -187,7 +189,21 @@ def build(out: Path, offline: bool, set_id: str = "v0.1") -> dict[str, Any]:
     rejected: dict[str, list[dict[str, Any]]] = {}
     for group, (quota, _dev) in quotas.items():
         chosen[group], rejected[group] = [], []
-        for star in shuffled(pools[group], seed, group):
+        order = shuffled(pools[group], seed, group)
+        if not offline:  # fetch the likely checks in parallel; the choice below stays sequential
+            ahead = order[: int(quota * 1.4) + 5]
+            with ThreadPoolExecutor(PREFETCH_WORKERS) as pool:
+                list(
+                    pool.map(
+                        lambda s: snap.get(
+                            f"mast/{s.tic_id}",
+                            lambda t=s.tic_id: mast_check(t),
+                            {"source": "MAST Observations"},
+                        ),
+                        ahead,
+                    )
+                )
+        for star in order:
             if len(chosen[group]) == quota:
                 break
             check = snap.get(
