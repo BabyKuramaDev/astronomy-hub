@@ -114,3 +114,13 @@ def test_index_can_redo_incomplete(tmp_path: Path) -> None:
     index.add("k", ok(2, "candidate", 2.0))  # redone later: the last row counts
     assert index.done("k") == {1, 2}
     assert index.done("k", redo_incomplete=True) == {2}
+
+
+def test_a_spurious_signal_rejected_on_a_planet_star_is_not_grave() -> None:
+    labels = [{"tic_id": 9, "group": "planet_small", "split": "calib", "period_days": 12.0}]
+    result = score(labels, {9: ok(9, "false_positive", 0.51)})
+    assert result["grave_errors"] == []
+    assert [s["tic_id"] for s in result["spurious_rejected"]] == [9]
+    assert result["table"][0]["detection_recall"] == 0.0
+    real = score(labels, {9: ok(9, "false_positive", 12.01)})
+    assert [g["tic_id"] for g in real["grave_errors"]] == [9]

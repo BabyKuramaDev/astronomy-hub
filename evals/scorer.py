@@ -99,7 +99,14 @@ def report(
     out += table(result, public)
     out += ["", "## Apart", ""]
     out += listing(
-        "grave errors (confirmed planet -> false_positive)", result["grave_errors"], public
+        "grave errors (confirmed planet -> false_positive on its catalog period)",
+        result["grave_errors"],
+        public,
+    )
+    out += listing(
+        "spurious signals rejected on planet stars (lost detections, not grave)",
+        result["spurious_rejected"],
+        public,
     )
     out += listing("aliases of the catalog period", result["aliases"], public)
     out += listing("contaminated or without data (not failures)", result["apart"], public)

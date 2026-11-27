@@ -36,14 +36,16 @@ def load(code: str) -> tuple[list[dict[str, Any]], dict[int, Outcome]]:
 
 
 def pooled(labels: list[dict], outcomes: dict[int, Outcome]) -> dict[str, Any]:
-    """Planets of calib and dev together, and the star sets the acceptance rule watches."""
+    """Planets of calib and dev together, and the star sets the acceptance rules watch."""
     planets = [s for s in labels if s["group"] in PLANETS]
-    ok = [
-        s
-        for s in planets
-        if outcomes[s["tic_id"]].final == "candidate"
-        and period_match(outcomes[s["tic_id"]].period_days, s["period_days"])
-    ]
+
+    def on_period(s: dict) -> bool:
+        return period_match(outcomes[s["tic_id"]].period_days, s["period_days"])
+
+    def final(s: dict) -> str | None:
+        return outcomes[s["tic_id"]].final
+
+    ok = [s for s in planets if final(s) == "candidate" and on_period(s)]
     return {
         "planets": len(planets),
         "final_ok": len(ok),
@@ -51,16 +53,61 @@ def pooled(labels: list[dict], outcomes: dict[int, Outcome]) -> dict[str, Any]:
         "accepted_fp": {
             s["tic_id"]
             for s in labels
-            if s["group"] == "false_positive" and outcomes[s["tic_id"]].final == "candidate"
+            if s["group"] == "false_positive" and final(s) == "candidate"
         },
-        "grave": {s["tic_id"] for s in planets if outcomes[s["tic_id"]].final == "false_positive"},
-        "grave_catalog_period": {
+        # grave: a real planet rejected on its catalog period
+        "grave": {s["tic_id"] for s in planets if final(s) == "false_positive" and on_period(s)},
+        # a spurious signal rejected on a planet's star: a lost detection, not grave
+        "spurious": {
+            s["tic_id"] for s in planets if final(s) == "false_positive" and not on_period(s)
+        },
+        "detected": {s["tic_id"] for s in planets if on_period(s)},
+        "false_detections": {
             s["tic_id"]
-            for s in planets
-            if outcomes[s["tic_id"]].final == "false_positive"
-            and period_match(outcomes[s["tic_id"]].period_days, s["period_days"])
+            for s in labels
+            if s["group"] == "no_signal" and outcomes[s["tic_id"]].detected
         },
     }
+
+
+STAGES = ("detection", "vetting", "fix")
+
+
+def verdict(stage: str, pa: dict[str, Any], pb: dict[str, Any], public: bool) -> list[str]:
+    """Detection changes are judged on detection metrics, vetting changes on verdicts, bug
+    fixes on doing no harm. A rise in grave errors never reverts on its own: stop and show."""
+
+    def ids(xs: set[int]) -> str:
+        return "" if public else f" {sorted(xs)}"
+
+    lost, gained = pb["detected"] - pa["detected"], pa["detected"] - pb["detected"]
+    new_fp, new_grave = pa["accepted_fp"] - pb["accepted_fp"], pa["grave"] - pb["grave"]
+    fd_b, fd_a = len(pb["false_detections"]), len(pa["false_detections"])
+    lines = [
+        f"- stage: {stage}",
+        f"- planets detected on the catalog period: {len(pb['detected'])} -> "
+        f"{len(pa['detected'])} (lost {len(lost)}{ids(lost)}, gained {len(gained)}{ids(gained)})",
+        f"- false detections on quiet stars: {fd_b} -> {fd_a}",
+        f"- final recall on planets: {pb['final_recall']} -> {pa['final_recall']} "
+        f"({pb['final_ok']} -> {pa['final_ok']} of {pa['planets']})",
+        f"- new accepted false positives: {len(new_fp)}{ids(new_fp)}",
+        f"- grave errors: {len(pb['grave'])} -> {len(pa['grave'])}; new {len(new_grave)}"
+        f"{ids(new_grave)}",
+        f"- spurious signals rejected on planet stars: {len(pb['spurious'])} -> "
+        f"{len(pa['spurious'])}",
+    ]
+    if stage == "detection":
+        better = bool(gained) or fd_a < fd_b
+        accepted = not lost and fd_a <= fd_b and better
+    elif stage == "vetting":
+        accepted = pa["final_ok"] > pb["final_ok"] and not new_fp
+    else:  # fix: no metric may get worse
+        accepted = not lost and fd_a <= fd_b and pa["final_ok"] >= pb["final_ok"] and not new_fp
+    if new_grave:
+        lines.append("- **stop**: grave errors rise; show the cause before deciding, do not revert")
+    else:
+        lines.append(f"- **{'accepted' if accepted else 'not accepted'}** by the {stage} rule")
+    return lines
 
 
 def fp_table(result: dict[str, Any]) -> list[str]:
@@ -99,8 +146,9 @@ def section(
         "",
         f"Planets, calib and dev pooled: final recall {p['final_recall']} "
         f"({p['final_ok']} of {p['planets']}); accepted false positives {len(p['accepted_fp'])}; "
-        f"grave errors {len(p['grave'])} ({len(p['grave_catalog_period'])} on the catalog period, "
-        f"the rest on another signal).",
+        f"grave errors {len(p['grave'])} (planets rejected on their catalog period); "
+        f"spurious signals rejected on planet stars {len(p['spurious'])} (lost detections); "
+        f"false detections on quiet stars {len(p['false_detections'])}.",
         "",
     ]
     out += [*table(result, public), "", "False positives:", "", *fp_table(result)]
@@ -108,7 +156,7 @@ def section(
     return out
 
 
-def report(name: str, code: str, before: str | None, public: bool) -> str:
+def report(name: str, code: str, before: str | None, public: bool, stage: str = "vetting") -> str:
     labels, after = load(code)
     out = [
         f"# Phase A: {name}",
@@ -121,19 +169,7 @@ def report(name: str, code: str, before: str | None, public: bool) -> str:
         _labels_b, prior = load(before)
         common = [s for s in labels if s["tic_id"] in prior]
         pa, pb = pooled(common, after), pooled(common, prior)
-        new_fp, new_grave = pa["accepted_fp"] - pb["accepted_fp"], pa["grave"] - pb["grave"]
-        accepted = pa["final_ok"] > pb["final_ok"] and not new_fp and not new_grave
-        out += [
-            "## Verdict",
-            "",
-            f"- final recall on planets: {pb['final_recall']} -> {pa['final_recall']} "
-            f"({pb['final_ok']} -> {pa['final_ok']} of {pa['planets']})",
-            f"- new accepted false positives: {len(new_fp)}"
-            + ("" if public else f" {sorted(new_fp)}"),
-            f"- new grave errors: {len(new_grave)}" + ("" if public else f" {sorted(new_grave)}"),
-            f"- **{'accepted' if accepted else 'not accepted'}** by the rule",
-            "",
-        ]
+        out += ["## Verdict", "", *verdict(stage, pa, pb, public), ""]
         out += section("Before", common, prior, public)
         out += section("After", common, after, public)
         if not public:
@@ -162,14 +198,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", default="current")
     parser.add_argument("--code", default=None, help="default: the current code version")
     parser.add_argument("--before", default=None)
+    parser.add_argument(
+        "--stage",
+        choices=STAGES,
+        default="vetting",
+        help="what the change touches: judged on detection, verdicts, or no harm",
+    )
     args = parser.parse_args(argv)
     code = args.code or code_version()
     private_dir = evals_dir() / "results" / "phase-a"
     private_dir.mkdir(parents=True, exist_ok=True)
-    text = report(args.name, code, args.before, public=False)
+    text = report(args.name, code, args.before, public=False, stage=args.stage)
     (private_dir / f"{args.name}.md").write_text(text)
     (REPO / "evals" / "results" / f"phase-a-{args.name}.md").write_text(
-        report(args.name, code, args.before, public=True)
+        report(args.name, code, args.before, public=True, stage=args.stage)
     )
     print(text)
     return 0

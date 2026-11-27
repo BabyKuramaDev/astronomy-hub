@@ -77,6 +77,7 @@ class GroupStats:
     incomplete: int = 0
     no_signal_correct: int = 0
     fit_failed: int = 0
+    spurious_rejected: int = 0
     fp_rejected_catalog_period: int = 0
     fp_rejected_other_period: int = 0
     fp_not_detected: int = 0
@@ -114,7 +115,7 @@ class GroupStats:
 def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dict[str, Any]:
     order = {"calib": 0, "dev": 1, "holdout": 2}
     stats: dict[tuple[str, str], GroupStats] = {}
-    grave, aliases, apart, rows = [], [], [], []
+    grave, spurious, aliases, apart, rows = [], [], [], [], []
     for label in labels:
         tic = int(label["tic_id"])
         out = outcomes.get(tic)
@@ -152,7 +153,11 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
             st.final_ok += out.final == "candidate" and matched
             st.candidate_wrong_period += out.final == "candidate" and not matched
             if out.final == "false_positive":
-                grave.append({"tic_id": tic, "group": group, "period_days": out.period_days})
+                if matched:  # grave: the real planet rejected on its catalog period
+                    grave.append({"tic_id": tic, "group": group, "period_days": out.period_days})
+                else:  # a spurious signal rejected: a lost detection, not a grave error
+                    st.spurious_rejected += 1
+                    spurious.append({"tic_id": tic, "group": group, "period_days": out.period_days})
             if (found := alias(out.period_days, catalog)) is not None:
                 aliases.append({"tic_id": tic, "group": group, "ratio": found})
         elif group == "false_positive":
@@ -183,6 +188,7 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
                     else None,
                     "incomplete": st.incomplete,
                     "fit_failed": st.fit_failed,
+                    "spurious_rejected": st.spurious_rejected if group in PLANETS else None,
                     "fp_breakdown": {
                         "rejected_catalog_period": st.fp_rejected_catalog_period,
                         "rejected_other_period": st.fp_rejected_other_period,
@@ -199,6 +205,7 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
     return {
         "table": table,
         "grave_errors": grave,
+        "spurious_rejected": spurious,
         "aliases": aliases,
         "apart": apart,
         "rows": rows,
