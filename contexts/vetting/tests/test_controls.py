@@ -50,7 +50,6 @@ def test_positive_control_passes_every_gate() -> None:
             "false_positive",
         ),
         ({"drop_last_sector_signal": True}, "holdout", "inconclusive"),
-        ({"centroid_shift_pix": 0.20}, "centroid", "false_positive"),
         (
             {"odd_depth": 450e-6, "even_depth": 450e-6, "sin_mod_amp": 400e-6},
             "rotation",
@@ -182,3 +181,26 @@ def test_coverage_passes_with_enough_transits_in_a_single_sector() -> None:
     assert "single sector" in outcome.note
     few = gate_spec("coverage").fn(one_sector(make_inputs(), end=1478.0), PARAMS, cfg)  # type: ignore[union-attr]
     assert few.status == "fail", few.note
+
+
+# A 480 ppm dip carried by a star 40 arcsec away shifts the centroid by 480e-6 * 40 arcsec,
+# 0.0192 arcsec or 0.000914 pixel.
+NEB_SHIFT_PIX = 480e-6 * 40.0 / 21.0
+
+
+def test_centroid_rejects_an_eclipse_on_a_neighbor_that_can_make_it() -> None:
+    inputs = replace(
+        make_inputs(centroid_shift_pix=NEB_SHIFT_PIX), target_tmag=10.0, neighbors=((40.0, 14.0),)
+    )
+    statuses = run(inputs)
+    assert statuses["centroid"] == "fail", statuses
+    assert vetting_verdict(statuses) == "false_positive"
+
+
+def test_centroid_without_a_possible_source_is_only_marginal() -> None:
+    inputs = replace(
+        make_inputs(centroid_shift_pix=NEB_SHIFT_PIX), target_tmag=10.0, neighbors=((40.0, 22.0),)
+    )  # far too faint to make a 480 ppm dip
+    statuses = run(inputs)
+    assert statuses["centroid"] == "marginal", statuses
+    assert vetting_verdict(statuses) == "inconclusive"

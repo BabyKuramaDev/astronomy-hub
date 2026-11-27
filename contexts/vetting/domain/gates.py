@@ -395,14 +395,16 @@ def _detrended_centroid(values: np.ndarray, valid: np.ndarray) -> np.ndarray:
     return out
 
 
-def gate_centroid(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
-    duration = inputs.duration_hours / 24.0 * params.duration_scale
+def _centroid_shift(
+    inputs: GateInputs, epoch: float, duration: float, params: MeasureParams
+) -> tuple[float, float, float, float] | None:
+    """In-transit minus baseline mean of the detrended centroids, and white-noise errors."""
     dx_in, dx_out, dy_in, dy_out = [], [], [], []
     for sector in inputs.raw:
         valid = np.isfinite(sector.centroid_col) & np.isfinite(sector.centroid_row)
         dx = _detrended_centroid(sector.centroid_col, valid)
         dy = _detrended_centroid(sector.centroid_row, valid)
-        win = windows(sector.time, inputs.period_days, inputs.epoch_btjd, duration, params)
+        win = windows(sector.time, inputs.period_days, epoch, duration, params)
         ok = np.isfinite(dx) & np.isfinite(dy)
         dx_in.append(dx[win.in_transit & ok])
         dy_in.append(dy[win.in_transit & ok])
@@ -411,26 +413,95 @@ def gate_centroid(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOu
     xi, xo = np.concatenate(dx_in or [[]]), np.concatenate(dx_out or [[]])
     yi, yo = np.concatenate(dy_in or [[]]), np.concatenate(dy_out or [[]])
     if xi.size < 5 or xo.size < 20:
+        return None
+    sx = max(float(xo.std() / math.sqrt(xi.size)), 1e-9)
+    sy = max(float(yo.std() / math.sqrt(yi.size)), 1e-9)
+    return float(xi.mean() - xo.mean()), float(yi.mean() - yo.mean()), sx, sy
+
+
+def _possible_source(inputs: GateInputs, offset_arcsec: float, cfg: Any) -> str | None:
+    """A catalogued neighbor at the implied offset that is bright enough to make the dip
+    (intrinsic depth needed at most 1), or None."""
+    if inputs.target_tmag is None or inputs.depth_ppm <= 0:
+        return None
+    lo, hi = cfg.neighbor_window
+    depth = inputs.depth_ppm * 1e-6
+    best = None
+    for sep, tmag in inputs.neighbors:
+        if tmag is None or not lo * offset_arcsec <= sep <= hi * offset_arcsec:
+            continue
+        ratio = 10 ** (-0.4 * (tmag - inputs.target_tmag))  # neighbor / target flux
+        needed = depth * (1.0 + ratio) / ratio
+        if needed <= 1.0 and (best is None or needed < best[2]):
+            best = (sep, tmag, needed)
+    if best is None:
+        return None
+    return f"a neighbor at {best[0]:.1f} arcsec (T {best[1]:.1f}) would need a {best[2]:.2f} dip"
+
+
+def gate_centroid(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
+    """Fails only on strong evidence in both: the shift beats an empirical null (the same
+    measurement at random false epochs, which absorbs correlated noise and systematics) by
+    fail_sigma, and a catalogued neighbor at the implied offset (shift / depth) can make the
+    dip. Any other shift of at least max_sigma is marginal: in doubt, inconclusive."""
+    duration = inputs.duration_hours / 24.0 * params.duration_scale
+    real = _centroid_shift(inputs, inputs.epoch_btjd, duration, params)
+    if real is None:
         return GateOutcome(
             "marginal",
             None,
             cfg.max_sigma,
             "not enough centroid measurements in and out of transit",
         )
-    mx, my = float(xi.mean() - xo.mean()), float(yi.mean() - yo.mean())
-    sx = max(float(xo.std() / math.sqrt(xi.size)), 1e-9)
-    sy = max(float(yo.std() / math.sqrt(yi.size)), 1e-9)
-    shift_pix = math.hypot(mx, my)
-    shift_arcsec = shift_pix * cfg.pixel_scale_arcsec
-    sigma = math.hypot(mx / sx, my / sy)
-    ok = sigma < cfg.max_sigma and shift_arcsec < cfg.max_shift_arcsec
+    mx, my, sx, sy = real
+    margin = 1.5 * duration / inputs.period_days  # false epochs stay clear of the transits
+    null = []
+    if margin < 0.45:
+        rng = np.random.default_rng(cfg.seed)
+        for phase in rng.uniform(margin, 1.0 - margin, cfg.n_false_epochs):
+            fake = _centroid_shift(
+                inputs, inputs.epoch_btjd + phase * inputs.period_days, duration, params
+            )
+            if fake is not None:
+                null.append(fake[:2])
+    white = math.hypot(mx / sx, my / sy)
+    if len(null) >= 50:
+        n = np.array(null)
+        sigma = math.hypot(
+            (mx - n[:, 0].mean()) / max(n[:, 0].std(), 1e-12),
+            (my - n[:, 1].mean()) / max(n[:, 1].std(), 1e-12),
+        )
+        kind = f"empirical, {len(null)} false epochs"
+    else:
+        sigma, kind = white, "white noise: too few false epochs"
+    shift_arcsec = math.hypot(mx, my) * cfg.pixel_scale_arcsec
+    depth = inputs.depth_ppm * 1e-6
+    offset = shift_arcsec / depth if depth > 0 else float("inf")
+    source = _possible_source(inputs, offset, cfg) if math.isfinite(offset) else None
+    if sigma >= cfg.fail_sigma and source is not None:
+        status = "fail"
+    elif sigma >= cfg.max_sigma:
+        status = "marginal"
+    else:
+        status = "pass"
+    note = (
+        f"in-transit centroid shift of {shift_arcsec:.3f} arcsec, {sigma:.1f} sigma ({kind}; "
+        f"{white:.1f} sigma white); implied source offset {offset:.1f} arcsec; "
+        + (source if source else "no catalogued neighbor there can make the dip")
+        + f"; fail needs {cfg.fail_sigma:g} sigma and such a neighbor, marginal from "
+        f"{cfg.max_sigma:g}"
+    )
     return GateOutcome(
-        "pass" if ok else "fail",
+        status,
         _r(sigma, 2),
         cfg.max_sigma,
-        f"in-transit centroid shift of {shift_arcsec:.3f} arcsec ({sigma:.1f} sigma); "
-        f"limits {cfg.max_sigma:g} sigma and {cfg.max_shift_arcsec:g} arcsec",
-        {"shift_arcsec": _r(shift_arcsec, 4), "shift_mpix": _r(shift_pix * 1e3, 3)},
+        note,
+        {
+            "shift_arcsec": _r(shift_arcsec, 4),
+            "sigma_white": _r(white, 2),
+            "offset_arcsec": _r(offset, 2) if math.isfinite(offset) else None,
+            "neighbor_source": 1.0 if source else 0.0,
+        },
     )
 
 

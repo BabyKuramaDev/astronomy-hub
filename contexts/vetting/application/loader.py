@@ -85,4 +85,6 @@ def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
         stellar_mass=star.mass_msun if star else None,
         model=model,
         catalog=catalog,
+        target_tmag=star.tmag if star else None,
+        neighbors=tuple((n.separation_arcsec, n.tmag) for n in star.neighbors) if star else (),
     )

@@ -51,6 +51,9 @@ class GateInputs:
     stellar_mass: Measurement | None
     model: ModelInfo | None
     catalog: CatalogInfo | None
+    target_tmag: float | None = None
+    # TIC neighbors from star.json: (separation in arcsec, Tmag)
+    neighbors: tuple[tuple[float, float | None], ...] = ()
 
 
 @dataclass(frozen=True)

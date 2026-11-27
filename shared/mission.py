@@ -183,9 +183,16 @@ class PlausibilityGate(GateBase):
 
 
 class CentroidGate(GateBase):
-    max_sigma: PositiveFloat
-    max_shift_arcsec: PositiveFloat
+    """Fail only on strong evidence: an empirical significance of at least fail_sigma and a
+    catalogued neighbor that can make the dip; any significance of at least max_sigma
+    without that is marginal."""
+
+    max_sigma: PositiveFloat  # marginal from here (empirical significance)
+    fail_sigma: PositiveFloat  # fail from here, when a neighbor can be the source
     pixel_scale_arcsec: PositiveFloat
+    n_false_epochs: Annotated[int, Field(ge=50)]
+    seed: Annotated[int, Field(ge=0)]
+    neighbor_window: tuple[PositiveFloat, PositiveFloat]  # separation / implied offset
 
 
 class CoherenceGate(GateBase):

@@ -121,7 +121,13 @@ vetting:
       # 18 R_earth (about 1.6 R_jup) as a hard limit.
       planet_radius_max_rjup: 2.62
       duration_ratio: [0.2, 2.2]
-    centroid: {severity: hard, max_sigma: 3.0, max_shift_arcsec: 2.5, pixel_scale_arcsec: 21.0}
+    # Fail only with strong evidence in both: an empirical significance (against the same
+    # measurement at n_false_epochs random false epochs) of at least fail_sigma and a TIC
+    # neighbor at separation/offset in neighbor_window that can make the dip; otherwise
+    # max_sigma or more is marginal (M5 phase A: the white-noise 3 sigma rule rejected 4
+    # confirmed planets with shifts of 0.007 to 0.11 arcsec).
+    centroid: {severity: hard, max_sigma: 3.0, fail_sigma: 5.0, pixel_scale_arcsec: 21.0,
+               n_false_epochs: 300, seed: 7, neighbor_window: [0.5, 2.0]}
     coherence:
       severity: soft
       min_positive_fraction: 0.7
