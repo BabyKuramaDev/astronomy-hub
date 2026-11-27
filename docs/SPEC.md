@@ -330,6 +330,16 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 - `ant apply` no borra un campo omitido: para vaciar los paquetes del environment hubo que escribir `packages: {pip: []}`.
 - La línea de `package-dossier` en `log.jsonl` se escribe después de armar el tar, así que no viaja en el expediente bajado.
 
+**Notas de implementación de M4**
+
+- Set v0.1 (`sha256:1e6dd2d2…`), armado el 26 de noviembre de 2026 en 11 minutos: 50 estrellas con las cuotas exactas. Se descartaron 8 candidatos por falta de curvas SPOC verificadas o de tránsitos suficientes. Se reconstruye byte por byte desde el snapshot.
+- `make eval-baseline` corre en unos 20 minutos con 3 procesos, unos 63 segundos por estrella. Un caché de numba compartido entre procesos hizo que `review reproduce` muriera con segfault (-11), así que cada proceso usa su propio workspace. En el sandbox las tools corren de a una y no pasa.
+- Baseline: los planetas profundos se detectan bien (100% en desarrollo, 75% en reservadas), pero el recall final es bajo (33% y 25%). Los planetas inconclusos tienen dos causas principales: el Revisor da `partial` con vetting `candidate` (5 de 9) y la prueba `coverage` falla (4 de 9, estrellas con un solo sector). Ningún error grave, ningún alias y una falsa aceptación de falso positivo entre las reservadas.
+- Bug encontrado en el baseline: `fit-transit` falla en 2 de las 10 estrellas sin señal. `select-peak` aceptó un pico de variabilidad (P en 0,5 o 1,1 d con la duración en el techo de 6 h) y el modelo calcula `acos(b/a)` con b > a (`math domain error`) o no deja muestras válidas. Queda para M5; arreglarlo antes del piloto habría puesto al baseline y al piloto en versiones distintas de las tools.
+- El Director de eval necesitó un agente aparte: la plataforma rechaza crear la sesión (400) si algún agente del roster tiene dominios web fuera de los `allowed_hosts` del environment, aunque nunca se lo llame.
+- Piloto de 5 estrellas de desarrollo con agentes: 1,21 USD (0,11 a 0,48 por estrella; el planeta que recorre toda la cadena es el más caro), unos 2 minutos activos por estrella, sin errores de plataforma ni reintentos. Los agentes eligieron igual que el script en 4 de 5 y mejor en 1, un falso positivo que el script dejó `inconclusive`. La auditoría marcó una lectura que era un `2>/dev/null` mal tokenizado; corregido, y `--reaudit` recalcula las corridas guardadas sin lanzar sesiones.
+- La línea de `package-dossier` en `log.jsonl` ahora viaja dentro del tar.
+
 **Las diez pruebas de descarte**
 
 Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos. Los umbrales son los de la referencia salvo donde se indica, y viven en `mission.yaml` (`vetting.gates`) junto con la severidad de cada prueba.
