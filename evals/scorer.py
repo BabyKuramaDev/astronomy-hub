@@ -142,12 +142,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("kind", choices=["baseline", "agents"])
     parser.add_argument("--set", default="v0.1", dest="set_id")
     parser.add_argument("--compare", action="store_true", help="agents only: against the baseline")
+    parser.add_argument("--splits", default="calib,dev", help="holdout only when named")
     args = parser.parse_args(argv)
     root = evals_dir() / "results" / args.set_id
     labels = json.loads((evals_dir() / "sets" / args.set_id / "set.json").read_text())
     key, rows = latest(Index(root / f"{args.kind}.jsonl"))
     outcomes = Index(root / f"{args.kind}.jsonl").outcomes(key)
-    stars = [s for s in labels["stars"] if s["tic_id"] in outcomes]
+    splits = set(args.splits.split(","))
+    stars = [s for s in labels["stars"] if s["tic_id"] in outcomes and s["split"] in splits]
+    rows = [r for r in rows if r["tic_id"] in {s["tic_id"] for s in stars}]
     result = score(stars, outcomes)
     diff = None
     if args.compare and args.kind == "agents":

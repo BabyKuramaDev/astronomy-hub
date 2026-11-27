@@ -29,6 +29,7 @@ class Outcome:
     active_seconds: float = 0.0
     flags: int = 0
     run: str | None = None
+    fit: str | None = None  # fitted | failed | crashed (fit-transit raised)
 
 
 def period_match(found: float | None, catalog: float | None) -> bool:
@@ -75,6 +76,10 @@ class GroupStats:
     reproduced: int = 0
     incomplete: int = 0
     no_signal_correct: int = 0
+    fit_failed: int = 0
+    fp_rejected_catalog_period: int = 0
+    fp_rejected_other_period: int = 0
+    fp_not_detected: int = 0
 
     def rates(self, group: str) -> dict[str, float | None]:
         """Only the metrics that mean something for the group; the rest stay None."""
@@ -107,7 +112,8 @@ class GroupStats:
 
 
 def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dict[str, Any]:
-    stats = {(s, g): GroupStats() for s in ("dev", "holdout") for g in GROUPS}
+    order = {"calib": 0, "dev": 1, "holdout": 2}
+    stats: dict[tuple[str, str], GroupStats] = {}
     grave, aliases, apart, rows = [], [], [], []
     for label in labels:
         tic = int(label["tic_id"])
@@ -134,8 +140,9 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
         if out.status in ("no_data", "contaminated"):
             apart.append({"tic_id": tic, "group": group, "status": out.status, "flags": out.flags})
             continue
-        st = stats[(label["split"], group)]
+        st = stats.setdefault((label["split"], group), GroupStats())
         st.n += 1
+        st.fit_failed += out.fit in ("failed", "crashed")
         if out.status == "incomplete":
             st.incomplete += 1
             continue
@@ -151,6 +158,9 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
         elif group == "false_positive":
             st.accepted_false_positive += out.final == "candidate"
             st.rejected_false_positive += out.final == "false_positive"
+            st.fp_rejected_catalog_period += out.final == "false_positive" and matched
+            st.fp_rejected_other_period += out.final == "false_positive" and not matched
+            st.fp_not_detected += out.final == "no_signal"
         else:
             st.false_alarm += out.final == "candidate"
             st.no_signal_correct += out.final == "no_signal"
@@ -159,7 +169,8 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
         st.inconclusive += out.final == "inconclusive"
         st.reproduced += out.review == "reproduced"
     table = []
-    for (split_name, group), st in stats.items():
+    for split_name, group in sorted(stats, key=lambda k: (order.get(k[0], 9), GROUPS.index(k[1]))):
+        st = stats[(split_name, group)]
         if st.n:
             table.append(
                 {
@@ -171,6 +182,16 @@ def score(labels: Sequence[dict[str, Any]], outcomes: dict[int, Outcome]) -> dic
                     if group in PLANETS
                     else None,
                     "incomplete": st.incomplete,
+                    "fit_failed": st.fit_failed,
+                    "fp_breakdown": {
+                        "rejected_catalog_period": st.fp_rejected_catalog_period,
+                        "rejected_other_period": st.fp_rejected_other_period,
+                        "not_detected": st.fp_not_detected,
+                        "inconclusive": st.inconclusive,
+                        "accepted": st.accepted_false_positive,
+                    }
+                    if group == "false_positive"
+                    else None,
                     "detections_to_review": sorted(st.detections_to_review),
                 }
             )

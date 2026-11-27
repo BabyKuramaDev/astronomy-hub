@@ -1,18 +1,22 @@
 """make eval-baseline: the deterministic pipeline (scripts/build_dossier.py, eval mode)
-on every star of the set, locally and without credits.
+on the stars of a set, locally and without credits.
 
-    uv run python -m evals.baseline [--set v0.1] [--workers 3]
+    uv run python -m evals.baseline [--set v0.1] [--splits dev] [--from STAGE] [--workers 3]
 
 Dossiers go to <evals_dir>/baseline/<set_id>/workspace/w<k> (ignored by that folder's git):
 one workspace per worker, because the tools keep numba's compiled kernels per
 workspace and parallel processes writing the same cache crash (segfault). A star always
-goes to the same worker. Outcomes go
-to <evals_dir>/results/<set_id>/baseline.jsonl, keyed on the set hash and the code
-trees, so a rerun only does the stars still missing or incomplete. A tool failure that
-is not "no data" (a MAST hiccup) is retried once.
+goes to the same worker. Outcomes go to <evals_dir>/results/<set_id>/baseline.jsonl,
+keyed on the set hash and the code that builds dossiers, so a rerun only does the stars
+still missing or incomplete.
+
+--from reruns only the stages a change touches (select, fit, vetting, review), reading
+the earlier ones from each dossier; the files of that stage and later are deleted
+first. The holdout split never runs unless --splits names it.
 """
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -26,26 +30,49 @@ from evals.index import Index, version_key
 from evals.outcomes import from_dossier
 from evals.paths import REPO, evals_dir
 
-CODE = ("contexts", "shared", "scripts", "missions")  # what can change a dossier
+CODE = ("contexts", "shared", "missions", "scripts/build_dossier.py", "uv.lock")
+STAGES = ("start", "select", "fit", "vetting", "review")
+REVIEW = ["review.json", "review", "decision.json"]
+VETTING = ["vetting.json", "vetting", *REVIEW]
+FIT = ["model.json", *VETTING]
+SELECT = ["signal.json", "folds", "figures", *FIT]
+CLEAR = {
+    "start": ["search.json", *SELECT, "log.jsonl"],
+    "select": SELECT,
+    "fit": FIT,
+    "vetting": VETTING,
+    "review": REVIEW,
+}
+
+
+def _builds_dossiers(path: str) -> bool:
+    """Python code, the mission and the locked dependencies; agent prompts do not count."""
+    return path.endswith(".py") or path.startswith("missions/") or path in CODE
 
 
 def code_version() -> str:
-    """Tree hashes of the code that builds dossiers: commits elsewhere keep the key."""
-    trees = subprocess.run(
-        ["git", "rev-parse", *(f"HEAD:{d}" for d in CODE)],
+    """Hash of the files that build a dossier: commits elsewhere keep the key."""
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "HEAD", "--", *CODE],
         cwd=REPO,
         capture_output=True,
         text=True,
         check=True,
-    ).stdout.split()
+    ).stdout.splitlines()
+    files = sorted(
+        line.split()[2] + " " + line.split("\t")[1]
+        for line in listing
+        if _builds_dossiers(line.split("\t")[1])
+    )
+    digest = hashlib.sha256("\n".join(files).encode()).hexdigest()[:16]
     dirty = subprocess.run(
         ["git", "status", "--porcelain", "--", *CODE],
         cwd=REPO,
         capture_output=True,
         text=True,
         check=True,
-    ).stdout.strip()
-    return ",".join(t[:12] for t in trees) + ("-dirty" if dirty else "")
+    ).stdout.splitlines()
+    return digest + ("-dirty" if any(_builds_dossiers(x[3:]) for x in dirty) else "")
 
 
 def head() -> str:
@@ -54,21 +81,26 @@ def head() -> str:
     ).stdout.strip()
 
 
-def run_star(tic: int, workspace: Path, attempts: int = 2):
+def baseline_key(set_hash: str, code: str) -> str:
+    return version_key(set_hash=set_hash, code=code, runner="build_dossier-eval")
+
+
+def clear(root: Path, stage: str) -> None:
+    for name in CLEAR[stage]:
+        path = root / name
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+
+
+def run_star(tic: int, workspace: Path, stage: str = "start", attempts: int = 2):
     root = workspace / "exoplanets" / str(tic)
+    if stage != "start" and not (root / "search.json").exists():
+        stage = "start"  # nothing to resume from
     for attempt in range(attempts):
         if root.exists():
-            shutil.rmtree(root / "folds", ignore_errors=True)
-            for name in (
-                "search.json",
-                "signal.json",
-                "model.json",
-                "vetting.json",
-                "review.json",
-                "decision.json",
-                "log.jsonl",
-            ):
-                (root / name).unlink(missing_ok=True)
+            clear(root, stage)
         started = time.monotonic()
         argv = [
             sys.executable,
@@ -80,6 +112,8 @@ def run_star(tic: int, workspace: Path, attempts: int = 2):
             "eval",
             "--workspace",
             str(workspace),
+            "--from",
+            stage,
         ]
         proc = subprocess.run(argv, cwd=REPO, capture_output=True, text=True, check=False)
         seconds = round(time.monotonic() - started, 1)
@@ -90,6 +124,7 @@ def run_star(tic: int, workspace: Path, attempts: int = 2):
                 "exit": proc.returncode,
                 "error": tail[0] if tail else None,
                 "attempts": attempt + 1,
+                "stage": stage,
             }
     raise AssertionError("unreachable")
 
@@ -97,28 +132,37 @@ def run_star(tic: int, workspace: Path, attempts: int = 2):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m evals.baseline")
     parser.add_argument("--set", default="v0.1", dest="set_id")
+    parser.add_argument(
+        "--splits",
+        default="dev,calib",
+        help="comma-separated splits to run (holdout only if named)",
+    )
+    parser.add_argument("--from", dest="from_stage", choices=STAGES, default="start")
     parser.add_argument("--workers", type=int, default=3)
     args = parser.parse_args(argv)
     root = evals_dir()
     labels = json.loads((root / "sets" / args.set_id / "set.json").read_text())
+    splits = set(args.splits.split(","))
     workspaces = root / "baseline" / args.set_id / "workspace"
     index = Index(root / "results" / args.set_id / "baseline.jsonl")
-    key = version_key(set_hash=labels["set_hash"], code=code_version(), runner="build_dossier-eval")
-    commit = head()
+    code = code_version()
+    key = baseline_key(labels["set_hash"], code)
     done = index.done(key, redo_incomplete=True)
     lanes: list[list[int]] = [[] for _ in range(args.workers)]
     for k, star in enumerate(labels["stars"]):  # fixed lane per star, by its place in the set
-        if star["tic_id"] not in done:
+        if star["split"] in splits and star["tic_id"] not in done:
             lanes[k % args.workers].append(star["tic_id"])
     todo = sum(len(lane) for lane in lanes)
-    print(f"baseline: {todo} of {len(labels['stars'])} stars to run", file=sys.stderr)
-    finished = [0]
-    lock = threading.Lock()
+    print(
+        f"baseline {args.set_id} {sorted(splits)} from {args.from_stage}: {todo} stars to run",
+        file=sys.stderr,
+    )
+    commit, finished, lock = head(), [0], threading.Lock()
 
     def lane(k: int) -> None:
         for tic in lanes[k]:
-            out, info = run_star(tic, workspaces / f"w{k}")
-            index.add(key, out, commit=commit, **info)
+            out, info = run_star(tic, workspaces / f"w{k}", args.from_stage)
+            index.add(key, out, commit=commit, code=code, **info)
             with lock:
                 finished[0] += 1
                 print(
@@ -131,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     with ThreadPoolExecutor(args.workers) as pool:
         for future in [pool.submit(lane, k) for k in range(args.workers)]:
             future.result()
-    print(json.dumps({"key": key, "index": str(index.path)}))
+    print(json.dumps({"key": key, "code": code, "index": str(index.path)}))
     return 0
 
 

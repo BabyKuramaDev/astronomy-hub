@@ -1,6 +1,7 @@
 """Build a star's complete dossier without an LLM, running every tool as an agent would.
 
-    uv run python -m scripts.build_dossier [--tic ID] [--mode eval|explore] [--workspace DIR]
+    uv run python -m scripts.build_dossier [--tic ID] [--mode eval|full|explore]
+                                           [--workspace DIR] [--from STAGE]
 
 Each agent's choice is replaced by a fixed rule, so the run is deterministic:
 - Searcher: the first peak of search.json that select-peak accepts, or --no-signal.
@@ -74,56 +75,75 @@ class Runner:
         )
 
 
+STAGES = ("start", "select", "fit", "vetting", "review")
+
+
+def read_data(root: Path, name: str) -> Any:
+    return json.loads((root / name).read_text())["data"]
+
+
 def build(args: argparse.Namespace) -> dict[str, Any]:
+    """Run the pipeline from args.from_stage on; earlier stages are read from the dossier."""
     run = Runner(args.tic, args.workspace, args.mission)
     skip = set(args.skip)
-    if "acquisition" not in skip:
-        run.tool("acquisition", "fetch-lightcurves")
-        run.tool("acquisition", "fetch-star")
-    run.tool("preparation", "clean")
-    search = run.tool("detection", "search-period")
+    stage = STAGES.index(args.from_stage)
+    root = args.workspace / args.mission / str(args.tic)
+    if stage == 0:
+        if "acquisition" not in skip:
+            run.tool("acquisition", "fetch-lightcurves")
+            run.tool("acquisition", "fetch-star")
+        run.tool("preparation", "clean")
+        run.tool("detection", "search-period")
 
-    chosen = None
-    for peak in search["peaks"]:
-        reason = (
-            f"Scripted run: first peak accepted by select-peak ({peak['id']}, SNR {peak['snr']})."
-        )
-        if (
-            run.tool(
+    if stage <= 1:
+        search = read_data(root, "search.json")
+        chosen = None
+        for peak in search["peaks"]:
+            reason = (
+                f"Scripted run: first peak accepted by select-peak ({peak['id']}, "
+                f"SNR {peak['snr']})."
+            )
+            accepted = run.tool(
                 "detection", "select-peak", "--peak", peak["id"], "--reason", reason, allow=(2,)
             )
-            is not None
-        ):
-            chosen = peak["id"]
-            break
-    if chosen is None:
-        run.tool(
-            "detection",
-            "select-peak",
-            "--no-signal",
-            "--reason",
-            "Scripted run: select-peak accepts no peak.",
-        )
+            if accepted is not None:
+                chosen = peak["id"]
+                break
+        if chosen is None:
+            run.tool(
+                "detection",
+                "select-peak",
+                "--no-signal",
+                "--reason",
+                "Scripted run: select-peak accepts no peak.",
+            )
+            return finish(run, args, catalog_done=False)
+        run.tool("detection", "fold", "--peak", chosen)
+    elif not read_data(root, "signal.json")["detected"]:
         return finish(run, args, catalog_done=False)
-    run.tool("detection", "fold", "--peak", chosen)
-    run.tool("modeling", "fit-transit")
 
-    if args.mode == "explore" and "catalog" not in skip:
+    if stage <= 2:
+        run.tool("modeling", "fit-transit")
+    catalog_done = args.mode == "explore" and "catalog" not in skip and stage <= 2
+    if catalog_done:
         catalog = run.tool("catalog", "crossmatch")
         if catalog["status"] in KNOWN | KNOWN_FALSE:
             return finish(run, args, catalog_done=True)
 
-    gates = run.tool("vetting", "run-gates")
-    failing = [
-        g["gate"] for g in gates["gates"] if g["status"] != "pass" and g["severity"] != "info"
-    ]
-    vetting = run.tool(
-        "vetting",
-        "conclude",
-        "--rationale",
-        "Scripted run without reruns: "
-        + (f"gates not passing: {', '.join(failing)}." if failing else "every gate passes."),
-    )
+    if stage <= 3:
+        gates = run.tool("vetting", "run-gates")
+        failing = [
+            g["gate"] for g in gates["gates"] if g["status"] != "pass" and g["severity"] != "info"
+        ]
+        vetting = run.tool(
+            "vetting",
+            "conclude",
+            "--rationale",
+            "Scripted run without reruns: "
+            + (f"gates not passing: {', '.join(failing)}." if failing else "every gate passes."),
+        )
+    else:
+        vetting = read_data(root, "vetting.json")
     if vetting["verdict"] != "false_positive":  # a false positive needs no MCMC nor review
         if vetting["verdict"] == "candidate" and args.mode == "explore":
             run.tool("modeling", "fit-transit", "--mode", "mcmc", *args.mcmc)
@@ -134,7 +154,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "--rationale",
             "Scripted run: the rule compares period and depth with signal.json.",
         )
-    return finish(run, args, catalog_done=args.mode == "explore" and "catalog" not in skip)
+    return finish(run, args, catalog_done=catalog_done)
 
 
 def finish(run: Runner, args: argparse.Namespace, catalog_done: bool) -> dict[str, Any]:
@@ -191,6 +211,13 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         help="extra fit-transit options for the MCMC, e.g. --steps 400 --burn 100",
     )
     parser.add_argument("--start", help="ephemeris --start (default: today 00:00 UTC)")
+    parser.add_argument(
+        "--from",
+        dest="from_stage",
+        choices=STAGES,
+        default="start",
+        help="rerun from this stage, reading the earlier ones from the dossier",
+    )
     args = parser.parse_args(argv)
     unknown = set(args.skip) - set(STEPS)
     if unknown:

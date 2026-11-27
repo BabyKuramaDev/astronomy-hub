@@ -94,9 +94,12 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any]]
     workspace = tmp_path_factory.mktemp("ws")
     dossier = Dossier.for_target(workspace, "exoplanets", TIC)
     FetchLightcurves(
-        FixtureArchive(), SpocFitsReader(), dossier, meta(Context.ACQUISITION, "fetch-lightcurves"),
+        FixtureArchive(),
+        SpocFitsReader(),
+        dossier,
+        meta(Context.ACQUISITION, "fetch-lightcurves"),
         MISSION.acquisition,
-    ).execute()  # fmt: skip
+    ).execute()
     FetchStar(
         FixtureCatalog(), dossier, meta(Context.ACQUISITION, "fetch-star"), MISSION.acquisition
     ).execute()
@@ -147,9 +150,17 @@ def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
         LogEntry.model_validate_json(line) for line in (root / "log.jsonl").read_text().splitlines()
     ]
     assert [e.tool for e in entries] == [
-        "clean", "search-period", "select-peak", "fold", "fit-transit", "run-gates", "conclude",
-        "reproduce", "conclude", "decide",
-    ]  # fmt: skip
+        "clean",
+        "search-period",
+        "select-peak",
+        "fold",
+        "fit-transit",
+        "run-gates",
+        "conclude",
+        "reproduce",
+        "conclude",
+        "decide",
+    ]
     assert all(e.exit_code == 0 for e in entries)
     assert entries[2].reason
 
@@ -157,9 +168,11 @@ def test_every_tool_logged_in_order(run: tuple[Path, dict[str, Any]]) -> None:
 def test_crossmatch_with_recorded_answers(run: tuple[Path, dict[str, Any]]) -> None:
     root, _ = run
     Crossmatch(
-        FixturePlanetCatalogs(), Dossier(root), meta(Context.CATALOG, "crossmatch"),
+        FixturePlanetCatalogs(),
+        Dossier(root),
+        meta(Context.CATALOG, "crossmatch"),
         MISSION.catalog,
-    ).execute()  # fmt: skip
+    ).execute()
     catalog = Dossier(root).read_envelope("catalog.json", CatalogFile).data
     assert catalog.status == "known_planet"
     assert all(m.period_match for m in catalog.matches)
@@ -168,3 +181,27 @@ def test_crossmatch_with_recorded_answers(run: tuple[Path, dict[str, Any]]) -> N
 def test_fixtures_are_small() -> None:
     total = sum(p.stat().st_size for p in FIXTURES.iterdir() if p.is_file())
     assert total < 1_000_000
+
+
+@pytest.mark.parametrize("stage", ["select", "fit", "vetting", "review"])
+def test_staged_rerun_gives_the_same_decision(
+    run: tuple[Path, dict[str, Any]], tmp_path: Path, stage: str
+) -> None:
+    import shutil
+
+    from evals.baseline import clear
+
+    root, summary = run
+    copy = tmp_path / "exoplanets" / str(TIC)
+    shutil.copytree(root, copy)
+    search = (copy / "search.json").read_bytes()
+    clear(copy, stage)
+    rerun = build_dossier(
+        TIC, tmp_path, "--mode", "eval", "--skip", "acquisition,catalog", "--from", stage
+    )
+    assert rerun["final"] == summary["final"] == "candidate"
+    assert (copy / "search.json").read_bytes() == search, "earlier stages are not rerun"
+    tools = [s["tool"] for s in rerun["steps"]]
+    assert "detection search-period" not in tools
+    assert ("modeling fit-transit" in tools) == (stage in ("select", "fit"))
+    assert ("vetting run-gates" in tools) == (stage != "review")

@@ -36,9 +36,14 @@ def from_dossier(tic_id: int, root: Path | None, **extra: Any) -> Outcome:
     decision = _data(root, "decision.json")
     vetting = _data(root, "vetting.json")
     review = _data(root, "review.json")
+    model = _data(root, "model.json")
+    log = _log(root)
+    fit = (model.get("status") or "fitted") if model else None
+    if fit is None and any(e.get("tool") == "fit-transit" and e.get("exit_code") for e in log):
+        fit = "crashed"
     if decision is None:
-        status = "no_data" if no_data(_log(root)) else "incomplete"
-        return Outcome(tic_id, status, **extra)
+        status = "no_data" if no_data(log) else "incomplete"
+        return Outcome(tic_id, status, fit=fit, **extra)
     return Outcome(
         tic_id,
         "ok",
@@ -47,6 +52,7 @@ def from_dossier(tic_id: int, root: Path | None, **extra: Any) -> Outcome:
         final=decision["final"],
         vetting=vetting["verdict"] if vetting else None,
         review=review["verdict"] if review else None,
+        fit=fit,
         **extra,
     )
 
