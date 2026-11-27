@@ -5,6 +5,7 @@ a running median (preparation uses a biweight) and searches with Transit Least
 Squares (detection uses BLS).
 """
 
+import math
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -101,23 +102,39 @@ def bin_series(
     return tb, fb, eb
 
 
+BOX_FRACTIONS = (0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)  # box widths, as fractions of TLS's T14
+
+
+def _box(
+    t: np.ndarray, f: np.ndarray, w: np.ndarray, period: float, epoch: float, width: float
+) -> tuple[float, float] | None:
+    """Weighted mean outside the box minus inside it, and that difference's error."""
+    phase = (t - epoch + 0.5 * period) % period - 0.5 * period
+    inside = np.abs(phase) <= 0.5 * width
+    if inside.sum() < 1 or (~inside).sum() < 2:
+        return None
+    w_in, w_out = w[inside], w[~inside]
+    mean_in = float(np.sum(w_in * f[inside]) / np.sum(w_in))
+    mean_out = float(np.sum(w_out * f[~inside]) / np.sum(w_out))
+    return mean_out - mean_in, math.sqrt(1.0 / np.sum(w_in) + 1.0 / np.sum(w_out))
+
+
 def box_depth(
     t: np.ndarray, f: np.ndarray, e: np.ndarray, period: float, epoch: float, duration_days: float
 ) -> float | None:
-    """Weighted mean outside the box minus weighted mean inside it, as a box search measures
-    depth: the same quantity as signal.json's depth, on the Reviewer's own curve."""
-    phase = (t - epoch + 0.5 * period) % period - 0.5 * period
-    inside = np.abs(phase) <= 0.5 * duration_days
-    if not inside.any() or inside.all():
-        return None
-    w = 1.0 / np.where(e > 0, e, np.nan) ** 2
-    ok = np.isfinite(w) & np.isfinite(f)
-    w_in, w_out = w[inside & ok], w[~inside & ok]
-    if w_in.size == 0 or w_out.size == 0:
-        return None
-    mean_in = float(np.sum(w_in * f[inside & ok]) / np.sum(w_in))
-    mean_out = float(np.sum(w_out * f[~inside & ok]) / np.sum(w_out))
-    return (mean_out - mean_in) * 1e6
+    """Depth of the best box, as a box search measures it: at this period and epoch, the box
+    width (a fraction of TLS's total duration T14, which includes ingress and egress) with
+    the highest SNR. The same quantity as signal.json's depth, on the Reviewer's own curve."""
+    ok = np.isfinite(f) & np.isfinite(e) & (e > 0)
+    t, f, w = t[ok], f[ok], 1.0 / e[ok] ** 2
+    best: tuple[float, float] | None = None  # (snr, depth)
+    for fraction in BOX_FRACTIONS:
+        box = _box(t, f, w, period, epoch, fraction * duration_days)
+        if box is not None and box[1] > 0:
+            snr = box[0] / box[1]
+            if best is None or snr > best[0]:
+                best = (snr, box[0])
+    return None if best is None else best[1] * 1e6
 
 
 def reproduce(sectors: Sequence[RawSector], params: ReproductionParams) -> Reproduction:
