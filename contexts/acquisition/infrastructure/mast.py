@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from shared.toolkit.errors import DataNotAvailableError, ServiceUnavailableError
-from shared.toolkit.retry import RetryPolicy
+from shared.toolkit.retry import DeadlineExceededError, RetryPolicy, is_transient
 
 LC_SUFFIX = "_lc.fits"
 # Single-sector SPOC light curve observations, for example
@@ -46,8 +46,12 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     return out
 
 
-def _wrap_remote(action: str, exc: Exception) -> ServiceUnavailableError:
-    """MAST failed or did not answer in time: transient, unlike data that does not exist."""
+def _wrap_remote(action: str, exc: Exception) -> Exception:
+    """MAST failed or did not answer in time (a transient error, or the policy's deadline):
+    ServiceUnavailableError, unlike data that does not exist. Any other error, a bug for
+    example, is returned unchanged so that it is never disguised as an outage."""
+    if not (is_transient(exc) or isinstance(exc, DeadlineExceededError)):
+        return exc
     return ServiceUnavailableError(
         f"MAST unavailable: {action} failed: {type(exc).__name__}: {exc}; rerun the tool once"
     )
@@ -60,7 +64,7 @@ def _timed[T](retry: RetryPolicy, call: Any) -> T:
     timeout = retry.timeout_s()
     if timeout is None:
         return call()
-    with conf.set_temp("timeout", timeout):
+    with conf.set_temp("timeout", math.ceil(timeout)):  # astroquery wants whole seconds
         return call()
 
 
@@ -87,7 +91,10 @@ class MastLightcurveArchive:
                 )
             )
         except Exception as exc:
-            raise _wrap_remote("observation query", exc) from exc
+            wrapped = _wrap_remote("observation query", exc)
+            if wrapped is exc:
+                raise
+            raise wrapped from exc
 
     def available_sectors(self, tic_id: int, author: str, exptime_s: float) -> list[int]:
         obs = self._observations(tic_id, author, exptime_s)
@@ -112,7 +119,10 @@ class MastLightcurveArchive:
                 lambda: _timed(self.retry, lambda: Observations.get_product_list(obs[mask]))
             )
         except Exception as exc:
-            raise _wrap_remote("product list", exc) from exc
+            wrapped = _wrap_remote("product list", exc)
+            if wrapped is exc:
+                raise
+            raise wrapped from exc
         dest.mkdir(parents=True, exist_ok=True)
         files: dict[int, Path] = {}
         for row in products:
@@ -139,7 +149,10 @@ class MastLightcurveArchive:
                         )
                     )
                 except Exception as exc:
-                    raise _wrap_remote(f"download of {name}", exc) from exc
+                    wrapped = _wrap_remote(f"download of {name}", exc)
+                    if wrapped is exc:
+                        raise
+                    raise wrapped from exc
             if not target.exists():
                 raise DataNotAvailableError(f"MAST download of {name} produced no file")
             files[sector] = target
@@ -160,7 +173,10 @@ class MastTicCatalog:
                 )
             )
         except Exception as exc:
-            raise _wrap_remote("TIC query", exc) from exc
+            wrapped = _wrap_remote("TIC query", exc)
+            if wrapped is exc:
+                raise
+            raise wrapped from exc
         if len(rows) != 1:
             raise DataNotAvailableError(f"TIC {tic_id}: expected one catalog row, got {len(rows)}")
         return _row_to_dict(rows[0])
@@ -184,7 +200,10 @@ class MastTicCatalog:
                 )
             )
         except Exception as exc:
-            raise _wrap_remote("TIC cone search", exc) from exc
+            wrapped = _wrap_remote("TIC cone search", exc)
+            if wrapped is exc:
+                raise
+            raise wrapped from exc
         return [_row_to_dict(row) for row in rows]
 
     def source(self, target: Mapping[str, Any]) -> str:

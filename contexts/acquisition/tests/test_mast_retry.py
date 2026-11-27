@@ -77,3 +77,33 @@ def test_the_deadline_stops_retries_before_the_bash_limit(monkeypatch: pytest.Mo
     with pytest.raises(ServiceUnavailableError, match="MAST unavailable"):
         MastLightcurveArchive(policy).available_sectors(1, "SPOC", 120.0)
     assert now[0] <= 240.0 + 1.0, "the tool returns before the sandbox's 295 s limit"
+
+
+def test_a_bug_is_never_disguised_as_an_outage(monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroquery.mast import Observations
+
+    def broken(**_: object) -> None:
+        raise TypeError("a programming error")
+
+    monkeypatch.setattr(Observations, "query_criteria", broken)
+    with pytest.raises(TypeError, match="programming error"):
+        MastLightcurveArchive(RetryPolicy(4, 0.0, lambda _w: None)).available_sectors(
+            1, "SPOC", 120.0
+        )
+
+
+def test_the_request_timeout_reaches_astroquery_as_whole_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from astroquery.mast import Observations, conf
+
+    seen: list[object] = []
+
+    def answer(**_: object) -> list[object]:
+        seen.append(conf.timeout)
+        return []
+
+    monkeypatch.setattr(Observations, "query_criteria", answer)
+    policy = RetryPolicy(1, 0.0, deadline_s=240.0, request_timeout_s=60.0)
+    MastLightcurveArchive(policy).available_sectors(1, "SPOC", 120.0)
+    assert seen == [60]
