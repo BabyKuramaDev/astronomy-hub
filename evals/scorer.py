@@ -134,7 +134,7 @@ def report(
                 f"{r['final']} | {r['period_days']} | {r['catalog_period']} | {r['grade']} "
                 f"| {r['cost_cents'] / 100:.2f} | {r['active_seconds']:.0f} | {r['flags']} |"
             )
-    return "\n".join(out) + "\n"
+    return "\n".join(out).rstrip() + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

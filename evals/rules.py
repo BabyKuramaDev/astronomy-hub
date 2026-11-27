@@ -154,7 +154,7 @@ def report(name: str, code: str, before: str | None, public: bool) -> str:
             )
     else:
         out += section("Baseline", labels, after, public)
-    return "\n".join(out) + "\n"
+    return "\n".join(out).rstrip() + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
