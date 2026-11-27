@@ -39,6 +39,13 @@ MAST_ERROR = re.compile(
     r"|Timeout|RemoteDisconnected|ServiceUnavailable|exit(ed)? (code )?1\b)",
     re.S,
 )
+USAGE_LIMIT = re.compile(r"billing_error|reached your specified API usage limits")
+
+
+class UsageLimitError(RuntimeError):
+    """The account's API usage limit was reached: stop the run, never retry."""
+
+
 MAST_PAUSE_AFTER = 3  # stars in a row failing on MAST before the run pauses
 MAST_PROBE_EVERY_S = 300.0
 MAST_PROBES = 6  # half an hour of waiting at most, then the run stops
@@ -144,10 +151,16 @@ def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[O
             result = ManagedAgentsRuntime(ManagedAgentsPlatform(), cfg).run(
                 tic, "exoplanets", "eval", budget.budget_cents
             )
+        except Exception as exc:
+            if USAGE_LIMIT.search(str(exc)):
+                raise UsageLimitError(str(exc)) from exc
+            raise
         finally:
             budget.release()
         summary = json.loads(result.summary_file.read_text())
         events = (result.summary_file.parent / "events.jsonl").read_text()
+        if USAGE_LIMIT.search(events) and result.dossier is None:
+            raise UsageLimitError(f"TIC {tic}: the session hit the API usage limit")
         out = from_agent_run(summary, no_data_in_events=bool(NO_DATA.search(events)))
         attempts.append(
             {
@@ -300,6 +313,11 @@ def main(argv: list[str] | None = None) -> int:
                 with lock:
                     stopped = str(exc)
                 print(f"TIC {tic}: not started: {exc}", file=sys.stderr)
+                return
+            except UsageLimitError as exc:  # not recorded: the next run retakes the star
+                with lock:
+                    stopped = f"API usage limit reached: {exc}"
+                print(f"TIC {tic}: stopped by the API usage limit", file=sys.stderr)
                 return
             index.add(key, out, commit=commit, versions=ver, agent_names=agent_names(), **info)
             alarm = check_alarm(labels_by_tic[tic], out, baseline.get(tic))

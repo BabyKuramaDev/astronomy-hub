@@ -66,3 +66,11 @@ def test_mast_failures_are_recognised_and_waited_out() -> None:
     assert wait_for_mast(probe=lambda: next(answers), sleep=waits.append)
     assert len(waits) == 2
     assert not wait_for_mast(probe=lambda: False, sleep=lambda _s: None)
+
+
+def test_usage_limit_is_recognised() -> None:
+    from runtime.eval_agents import USAGE_LIMIT
+
+    assert USAGE_LIMIT.search('{"type": "billing_error", "message": "x"}')
+    assert USAGE_LIMIT.search("You have reached your specified API usage limits.")
+    assert not USAGE_LIMIT.search("MAST unavailable")
