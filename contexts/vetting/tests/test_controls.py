@@ -59,10 +59,16 @@ def test_negative_controls(kwargs: dict, gate: str, expected_verdict: str) -> No
 
 
 def test_small_significant_occultation_passes_with_a_note() -> None:
-    """A significant secondary below the deepest possible occultation passes, with a note.
-    Without a stellar temperature the bound takes the Rayleigh-Jeans limit (about 150 ppm
-    here), so a 60 ppm secondary is within it."""
-    inputs = make_inputs(odd_depth=600e-6, even_depth=600e-6, sec_depth=60e-6)
+    """A significant secondary below the deepest possible occultation passes, with a note:
+    a close-in giant (Rp/R* 0.1, a/R* 3) could show over 1000 ppm, so 60 ppm is within it."""
+
+    def m(v: float) -> Measurement:
+        return Measurement(value=v, err_lower=0.01 * v, err_upper=0.01 * v)
+
+    giant = ModelInfo(
+        rp_rs=m(0.1), planet_radius_rearth=None, duration_hours=m(1.7), method="quick", a_rs=m(3.0)
+    )
+    inputs = replace(make_inputs(odd_depth=600e-6, even_depth=600e-6, sec_depth=60e-6), model=giant)
     cfg = CONFIG.gates.secondary
     outcome = gate_spec("secondary").fn(inputs, PARAMS, cfg)  # type: ignore[union-attr]
     assert outcome.value is not None

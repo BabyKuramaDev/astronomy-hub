@@ -310,7 +310,7 @@ def max_occultation_ppm(inputs: GateInputs, primary_ppm: float, cfg: Any) -> tup
     """The deepest occultation a planet making this transit could show, on the permissive
     side: geometric albedo 1 for reflected light plus a dayside at the no-redistribution,
     zero-Bond-albedo temperature, with the smallest a/R*, the largest radius ratio and the
-    highest stellar temperature (without one, the Rayleigh-Jeans limit of the ratio)."""
+    highest stellar temperature (without one, the hottest host of a transiting planet)."""
     k2 = primary_ppm * 1e-6
     m = inputs.model
     if m is not None and m.failure is None and m.rp_rs is not None:
@@ -320,11 +320,10 @@ def max_occultation_ppm(inputs: GateInputs, primary_ppm: float, cfg: Any) -> tup
     a_rs = max(a_rs, 1.0)
     scale = math.sqrt(1.0 / a_rs) * (2.0 / 3.0) ** 0.25  # T_day / Teff
     if inputs.stellar_teff is not None:
-        teff = inputs.stellar_teff.upper
-        thermal = _band_flux(scale * teff) / _band_flux(teff)
-        t_src = f"Teff {teff:.0f} K"
+        teff, t_src = inputs.stellar_teff.upper, f"Teff {inputs.stellar_teff.upper:.0f} K"
     else:
-        thermal, t_src = scale, "no Teff: Rayleigh-Jeans limit"
+        teff, t_src = cfg.teff_max_k, f"no Teff: hottest transiting host, {cfg.teff_max_k:.0f} K"
+    thermal = _band_flux(scale * teff) / _band_flux(teff)
     reflected = 1.0 / a_rs**2
     bound = k2 * (reflected + thermal) * 1e6
     return bound, f"a/R* {a_rs:.2f} ({a_src}), {t_src}, (Rp/R*)^2 {k2 * 1e6:.0f} ppm"

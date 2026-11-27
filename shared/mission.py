@@ -179,6 +179,7 @@ class SecondaryGate(GateBase):
     margin_factor: Annotated[float, Field(ge=1)]  # 3 sigma lower end over this x the bound
     stellar_density_min_solar: PositiveFloat  # fallback density for a/R*, as in detection
     rp_rs_max: Annotated[float, Field(gt=0, lt=1)]  # caps the radius ratio, as in detection
+    teff_max_k: PositiveFloat  # stellar temperature when the TIC has none
 
 
 class PlausibilityGate(GateBase):

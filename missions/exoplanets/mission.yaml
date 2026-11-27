@@ -124,6 +124,10 @@ vetting:
       margin_factor: 2.0
       stellar_density_min_solar: 0.144  # same fallback as detection.duration_limit
       rp_rs_max: 0.3                    # same as detection.duration_limit
+      # Without a TIC Teff, the hottest host of a transiting planet (a white dwarf; the next is
+      # 10000 K), NASA Exoplanet Archive 2026-11-27, 3702 hosts:
+      #   select hostname, st_teff from pscomppars where tran_flag = 1 and st_teff is not null
+      teff_max_k: 15900.0
     plausibility:
       severity: hard
       planet_radius_min_rearth: 0.4
