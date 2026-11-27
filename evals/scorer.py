@@ -11,7 +11,6 @@ in this repository. The outcomes are those of the latest version key in the inde
 import argparse
 import json
 import sys
-from pathlib import Path
 from typing import Any
 
 from evals.index import Index
@@ -83,7 +82,10 @@ def report(
     ]
     versions = rows[-1].get("versions")
     if versions:
-        agents = ", ".join(f"{Path(k).parent.name} v{v[1]}" for k, v in versions["agents"].items())
+        agents = ", ".join(
+            f"{k.removeprefix('./contexts/').removesuffix('.md')} v{v[1]}"
+            for k, v in versions["agents"].items()
+        )
         out += [f"- agents: {agents}", f"- eval environment: {versions['environment'][0]}"]
     cost = result["cost"]
     out += [

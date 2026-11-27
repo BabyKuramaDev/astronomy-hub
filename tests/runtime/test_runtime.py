@@ -362,6 +362,15 @@ def test_platform_adapter_builds_the_session_request() -> None:
         ),
         ("cd /workspace/astronomy-hub && head -c 400 workspace/exoplanets/100100827/log.jsonl", []),
         ("cd /workspace/astronomy-hub && bin/hub detection search-period --tic 100100827", []),
+        (
+            "cd /workspace/astronomy-hub && ls workspace/exoplanets/100100827/vetting 2>/dev/null",
+            [],
+        ),
+        ("cd /workspace/astronomy-hub && ls -d workspace/exoplanets/100100827/vet* 2>&1", []),
+        (
+            "cd /workspace/astronomy-hub && wc -l < tests/fixtures/wasp18/reference.json",
+            ["/workspace/astronomy-hub/tests/fixtures/wasp18/reference.json"],
+        ),
     ],
 )
 def test_reads_outside_the_dossier(command: str, outside: list[str]) -> None:

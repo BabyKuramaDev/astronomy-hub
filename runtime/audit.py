@@ -10,9 +10,11 @@ WASP-18 b's catalog period. Anything else is flagged in summary.json, with wheth
 it happened before decide.
 """
 
+import json
 import posixpath
 import shlex
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 TOOL_ENTRYPOINTS = ("bin/hub", "bin/setup-sandbox")
@@ -159,6 +161,24 @@ def allowed_path(path: str, tic_id: int | None) -> bool:
     return any(path == d.rstrip("/") or path.startswith(d.rstrip("/") + "/") for d in DOCS)
 
 
+def _path_args(words: list[str]) -> list[str]:
+    """Arguments that name files read. Options, numbers and shell variables ($f in a
+    loop) are not paths we can resolve; an output redirection and its target are a
+    write (check_command judges those), while the target of < is read."""
+    out, skip = [], False
+    for w in words:
+        if skip:
+            skip = False
+            continue
+        if w and set(w) <= set("<>&|;()"):
+            skip = ">" in w  # the next word is where the output goes
+            continue
+        if w.startswith("-") or w.isdigit() or "$" in w:
+            continue
+        out.append(w)
+    return out
+
+
 def read_paths(command: str) -> list[str]:
     """Absolute paths that the read-only commands of a bash command open, following cd."""
     try:
@@ -174,8 +194,7 @@ def read_paths(command: str) -> list[str]:
         if not words or words[0] in CLOSERS or words[0] == "for" or _is_tool(words[0]):
             continue
         program = words[0]
-        # Options, numbers and shell variables ($f in a loop) are not paths we can resolve.
-        args = [w for w in words[1:] if not w.startswith("-") and not w.isdigit() and "$" not in w]
+        args = _path_args(words[1:])
         if program == "cd":
             cwd = posixpath.normpath(posixpath.join(cwd, args[0] if args else "/root"))
             continue
@@ -253,17 +272,10 @@ def as_dicts(flags: list[Flag]) -> list[dict[str, Any]]:
     return [asdict(f) for f in flags]
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Recompute the audit of a stored run: python -m runtime.audit runs/<run_id>"""
-    import argparse
-    import json
-    from pathlib import Path
-
-    parser = argparse.ArgumentParser(prog="python -m runtime.audit")
-    parser.add_argument("run_dir", type=Path)
-    args = parser.parse_args(argv)
-    records = [json.loads(x) for x in (args.run_dir / "events.jsonl").read_text().splitlines()]
-    summary_file = args.run_dir / "summary.json"
+def reaudit_run(run_dir: Path) -> tuple[int, list[dict[str, Any]]]:
+    """Recompute a stored run's audit with the current rules and save it in summary.json."""
+    records = [json.loads(x) for x in (run_dir / "events.jsonl").read_text().splitlines()]
+    summary_file = run_dir / "summary.json"
     summary = json.loads(summary_file.read_text())
     tic = summary.get("tic_id")
     flags = as_dicts(audit(records, int(tic) if tic is not None else None))
@@ -274,6 +286,17 @@ def main(argv: list[str] | None = None) -> int:
         for r in records
         if r["event"].get("type") == "agent.tool_use" and r["event"].get("name") == "bash"
     )
+    return bash, flags
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Recompute the audit of a stored run: python -m runtime.audit runs/<run_id>"""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m runtime.audit")
+    parser.add_argument("run_dir", type=Path)
+    args = parser.parse_args(argv)
+    bash, flags = reaudit_run(args.run_dir)
     print(json.dumps({"bash_commands": bash, "flags": flags}, indent=2))
     return 0
 

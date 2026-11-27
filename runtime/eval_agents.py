@@ -26,6 +26,7 @@ from evals.outcomes import from_agent_run
 from evals.paths import evals_dir
 from evals.scoring import Outcome
 from evals.selection import pilot
+from runtime.audit import reaudit_run
 from runtime.checks import agent_names
 from runtime.ledger import SpendCapError, check_cap, spent_cents
 from runtime.managed import ManagedAgentsRuntime, RunConfig
@@ -127,6 +128,25 @@ def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[O
     return out, {"attempts": attempts}
 
 
+def reaudit(index: Index, key: str, tics: set[int]) -> dict[int, str]:
+    """Recompute the audit of each star's last run under this key and append the new
+    outcome (the last row of a star is the one scored). No session is started."""
+    last = {r["tic_id"]: r for r in index.rows() if r["key"] == key and r["tic_id"] in tics}
+    changed = {}
+    for tic, row in sorted(last.items()):
+        run_dir = RUNS / row["attempts"][-1]["run_id"]
+        reaudit_run(run_dir)
+        summary = json.loads((run_dir / "summary.json").read_text())
+        events = (run_dir / "events.jsonl").read_text()
+        out = from_agent_run(summary, no_data_in_events=bool(NO_DATA.search(events)))
+        out = replace(out, cost_cents=row["outcome"]["cost_cents"])
+        if out.status != row["outcome"]["status"] or out.flags != row["outcome"]["flags"]:
+            extra = {k: v for k, v in row.items() if k not in ("key", "tic_id", "outcome")}
+            index.add(key, out, **{**extra, "reaudited": True})
+            changed[tic] = f"{row['outcome']['status']} -> {out.status}"
+    return changed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m runtime.eval_agents")
     parser.add_argument("--set", default="v0.1", dest="set_id")
@@ -134,7 +154,14 @@ def main(argv: list[str] | None = None) -> int:
     which.add_argument("--pilot", action="store_true", help="5 development stars")
     which.add_argument("--split", choices=["dev", "holdout"])
     parser.add_argument("--budget-cents", type=int, default=200, help="per session")
-    parser.add_argument("--cap-cents", type=int, required=True, help="spend cap of the milestone")
+    parser.add_argument(
+        "--cap-cents", type=int, help="spend cap of the milestone (required to run)"
+    )
+    parser.add_argument(
+        "--reaudit",
+        action="store_true",
+        help="no sessions: recompute the audits of the stored runs and rescore them",
+    )
     parser.add_argument("--milestone", default="M4")
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--retries", type=int, default=1)
@@ -156,6 +183,11 @@ def main(argv: list[str] | None = None) -> int:
     ver = versions()
     key = version_key(set_hash=labels["set_hash"], **ver)
     index = Index(root / "results" / args.set_id / "agents.jsonl")
+    if args.reaudit:
+        print(json.dumps(reaudit(index, key, {s["tic_id"] for s in stars}), indent=2))
+        return 0
+    if args.cap_cents is None:
+        parser.error("--cap-cents is required to run sessions")
     todo = [s["tic_id"] for s in stars if s["tic_id"] not in index.done(key)]
     ledger = RUNS / "ledger.jsonl"
     print(
