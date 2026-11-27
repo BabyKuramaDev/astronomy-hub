@@ -25,6 +25,7 @@ class ModelInfo:
     duration_hours: Measurement | None
     method: str
     failure: str | None = None  # model.json is a failed fit: no measurement to use
+    a_rs: Measurement | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class GateInputs:
     model: ModelInfo | None
     catalog: CatalogInfo | None
     target_tmag: float | None = None
+    stellar_teff: Measurement | None = None
     # TIC neighbors from star.json: (separation in arcsec, Tmag)
     neighbors: tuple[tuple[float, float | None], ...] = ()
 

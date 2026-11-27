@@ -172,7 +172,9 @@ class OddEvenGate(GateBase):
 
 class SecondaryGate(GateBase):
     min_sigma: PositiveFloat  # significance of the secondary eclipse
-    max_depth_ratio: PositiveFloat  # deeper than this fraction of the primary: not a planet
+    margin_factor: Annotated[float, Field(ge=1)]  # 3 sigma lower end over this x the bound
+    stellar_density_min_solar: PositiveFloat  # fallback density for a/R*, as in detection
+    rp_rs_max: Annotated[float, Field(gt=0, lt=1)]  # caps the radius ratio, as in detection
 
 
 class PlausibilityGate(GateBase):

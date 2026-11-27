@@ -234,12 +234,72 @@ def _event_depth(dips: list[Any]) -> Dip | None:
     return Dip(float(values.mean()), max(scatter, white_err))
 
 
-def gate_secondary(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
-    """Eclipse at phase 0.5, against a local baseline around it.
+TESS_BAND_NM = (600.0, 1000.0)  # top-hat approximation of the TESS bandpass
+SOLAR_DENSITY_KG_M3 = float(
+    (constants.M_sun / (4.0 / 3.0 * math.pi * constants.R_sun**3)).to_value("kg / m3")
+)
 
-    Passes when not significant, or when significant but shallower than
-    max_depth_ratio of the primary (an occultation compatible with a planet). The
-    reference code only checks the significance; its docstring adds the 30% clause.
+
+def _band_flux(temperature_k: float) -> float:
+    """Blackbody surface brightness integrated over the TESS band (arbitrary units)."""
+    import astropy.units as u
+    from astropy.modeling.models import BlackBody
+
+    wl = np.linspace(*TESS_BAND_NM, 200) * u.nm
+    bb = BlackBody(temperature=temperature_k * u.K)(wl).to_value(
+        u.W / (u.m**2 * u.nm * u.sr), equivalencies=u.spectral_density(wl)
+    )
+    return float(np.trapezoid(bb, wl.value))
+
+
+def _a_rs_low(inputs: GateInputs, cfg: Any) -> tuple[float, str]:
+    """The smallest a/R* among the fit's lower end and Kepler's third law with the lower end
+    of the stellar density (or the mission's fallback): it gives the highest bound."""
+    candidates = []
+    m = inputs.model
+    if m is not None and m.failure is None and m.a_rs is not None and m.a_rs.lower > 0:
+        candidates.append((m.a_rs.lower, "fit"))
+    r, mass = inputs.stellar_radius, inputs.stellar_mass
+    rho, src = cfg.stellar_density_min_solar, "fallback density"
+    if r is not None and mass is not None and mass.lower > 0:
+        rho, src = mass.lower / r.upper**3, "TIC density"
+    p_s = inputs.period_days * SECONDS_PER_DAY
+    kepler = (G_SI * rho * SOLAR_DENSITY_KG_M3 * p_s**2 / (3.0 * math.pi)) ** (1.0 / 3.0)
+    candidates.append((kepler, src))
+    return min(candidates)
+
+
+def max_occultation_ppm(inputs: GateInputs, primary_ppm: float, cfg: Any) -> tuple[float, str]:
+    """The deepest occultation a planet making this transit could show, on the permissive
+    side: geometric albedo 1 for reflected light plus a dayside at the no-redistribution,
+    zero-Bond-albedo temperature, with the smallest a/R*, the largest radius ratio and the
+    highest stellar temperature (without one, the Rayleigh-Jeans limit of the ratio)."""
+    k2 = primary_ppm * 1e-6
+    m = inputs.model
+    if m is not None and m.failure is None and m.rp_rs is not None:
+        k2 = max(k2, m.rp_rs.upper**2)
+    k2 = min(k2, cfg.rp_rs_max**2)  # no planet is larger than the mission's largest ratio
+    a_rs, a_src = _a_rs_low(inputs, cfg)
+    a_rs = max(a_rs, 1.0)
+    scale = math.sqrt(1.0 / a_rs) * (2.0 / 3.0) ** 0.25  # T_day / Teff
+    if inputs.stellar_teff is not None:
+        teff = inputs.stellar_teff.upper
+        thermal = _band_flux(scale * teff) / _band_flux(teff)
+        t_src = f"Teff {teff:.0f} K"
+    else:
+        thermal, t_src = scale, "no Teff: Rayleigh-Jeans limit"
+    reflected = 1.0 / a_rs**2
+    bound = k2 * (reflected + thermal) * 1e6
+    return bound, f"a/R* {a_rs:.2f} ({a_src}), {t_src}, (Rp/R*)^2 {k2 * 1e6:.0f} ppm"
+
+
+def gate_secondary(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
+    """Eclipse at phase 0.5, against a local baseline around it, compared with the deepest
+    occultation physically possible for a planet making this transit.
+
+    Fails only if the secondary is significant and its 3 sigma lower end exceeds
+    margin_factor times that bound. A significant secondary above the bound without that
+    margin is marginal; one below it passes, with a note.
     """
     weights = _weights(inputs)
     primary = _event_depth(
@@ -255,28 +315,36 @@ def gate_secondary(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateO
             "marginal", None, cfg.min_sigma, "fewer than two primary or secondary events"
         )
     sigma = secondary.snr
-    ratio = secondary.ppm / primary.ppm
+    bound, basis = max_occultation_ppm(inputs, primary.ppm, cfg)
+    lower = secondary.ppm - 3.0 * secondary.err_ppm
     metrics = {
         "secondary_ppm": _r(secondary.ppm, 1),
         "secondary_err_ppm": _r(secondary.err_ppm, 1),
         "primary_ppm": _r(primary.ppm, 1),
-        "depth_ratio": _r(ratio, 4),
-        "max_depth_ratio": cfg.max_depth_ratio,
+        "max_occultation_ppm": _r(bound, 2),
+        "lower_3sigma_ppm": _r(lower, 1),
     }
+    seen = (
+        f"secondary eclipse of {secondary.ppm:.0f} +- {secondary.err_ppm:.0f} ppm "
+        f"({sigma:.1f} sigma); the deepest planetary occultation is {bound:.1f} ppm ({basis})"
+    )
     if sigma < cfg.min_sigma:
-        status, note = "pass", f"no significant secondary eclipse ({sigma:.1f} sigma)"
-    elif ratio < cfg.max_depth_ratio:
-        status = "pass"
-        note = (
-            f"significant secondary eclipse ({sigma:.1f} sigma) of {secondary.ppm:.0f} ppm, "
-            f"{100 * ratio:.1f}% of the primary: an occultation compatible with a planet"
-        )
-    else:
+        status, note = "pass", f"no significant {seen}"
+    elif lower > cfg.margin_factor * bound:
         status = "fail"
         note = (
-            f"significant secondary eclipse ({sigma:.1f} sigma) of {secondary.ppm:.0f} ppm, "
-            f"{100 * ratio:.0f}% of the primary: too deep for a planet"
+            f"{seen}: its 3 sigma lower end {lower:.0f} ppm is over {cfg.margin_factor:g} "
+            "times it, too deep for any planet"
         )
+    elif secondary.ppm > bound:
+        status = "marginal"
+        note = (
+            f"significant {seen}: deeper than the bound, but not by {cfg.margin_factor:g} "
+            "times at 3 sigma"
+        )
+    else:
+        status = "pass"
+        note = f"significant {seen}: compatible with a planet's occultation"
     return GateOutcome(status, _r(sigma, 2), cfg.min_sigma, note, metrics)
 
 

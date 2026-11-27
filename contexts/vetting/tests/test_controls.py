@@ -44,11 +44,6 @@ def test_positive_control_passes_every_gate() -> None:
     ("kwargs", "gate", "expected_verdict"),
     [
         ({"odd_depth": 950e-6, "even_depth": 200e-6}, "odd-even", "false_positive"),
-        (
-            {"odd_depth": 600e-6, "even_depth": 600e-6, "sec_depth": 300e-6},
-            "secondary",
-            "false_positive",
-        ),
         ({"drop_last_sector_signal": True}, "holdout", "inconclusive"),
         (
             {"odd_depth": 450e-6, "even_depth": 450e-6, "sin_mod_amp": 400e-6},
@@ -64,7 +59,9 @@ def test_negative_controls(kwargs: dict, gate: str, expected_verdict: str) -> No
 
 
 def test_small_significant_occultation_passes_with_a_note() -> None:
-    """A planet's occultation (10% of the transit) is significant but must not fail gate 6."""
+    """A significant secondary below the deepest possible occultation passes, with a note.
+    Without a stellar temperature the bound takes the Rayleigh-Jeans limit (about 150 ppm
+    here), so a 60 ppm secondary is within it."""
     inputs = make_inputs(odd_depth=600e-6, even_depth=600e-6, sec_depth=60e-6)
     cfg = CONFIG.gates.secondary
     outcome = gate_spec("secondary").fn(inputs, PARAMS, cfg)  # type: ignore[union-attr]
@@ -72,7 +69,22 @@ def test_small_significant_occultation_passes_with_a_note() -> None:
     assert outcome.value >= cfg.min_sigma
     assert outcome.status == "pass"
     assert "compatible with a planet" in outcome.note
-    assert outcome.metrics["depth_ratio"] == pytest.approx(0.1, abs=0.05)
+    assert outcome.metrics["secondary_ppm"] < outcome.metrics["max_occultation_ppm"]
+
+
+K_DWARF_TEFF = Measurement(value=4100.0, err_lower=100.0, err_upper=100.0)  # 0.65 Rsun, 0.63 Msun
+
+
+def test_eclipsing_binary_secondary_is_rejected() -> None:
+    """A 300 ppm secondary (half the primary) around a K dwarf is far deeper than any
+    planet's occultation at P = 3.2 d."""
+    inputs = replace(
+        make_inputs(odd_depth=600e-6, even_depth=600e-6, sec_depth=300e-6),
+        stellar_teff=K_DWARF_TEFF,
+    )
+    statuses = run(inputs)
+    assert statuses["secondary"] == "fail", statuses
+    assert vetting_verdict(statuses) == "false_positive"
 
 
 def test_third_harmonic_rotator_is_rejected() -> None:

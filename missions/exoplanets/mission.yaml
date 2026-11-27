@@ -103,7 +103,15 @@ vetting:
     secondary:
       severity: hard
       min_sigma: 2.5
-      max_depth_ratio: 0.3       # reference docstring: "< 2.5 sigma or < 30% primary depth"
+      # Fails only if the secondary's 3 sigma lower end exceeds margin_factor times the
+      # deepest occultation a planet could show (geometric albedo 1 plus a no-redistribution,
+      # zero-Bond-albedo dayside; smallest a/R*, largest radius ratio, hottest star). Albedo 1
+      # is already about 3x the highest measured; the factor 2 covers non-blackbody emission
+      # and the top-hat TESS band (M5 phase A: the old rule passed any secondary under 30% of
+      # the primary, so two eclipsing binaries reached candidate).
+      margin_factor: 2.0
+      stellar_density_min_solar: 0.144  # same fallback as detection.duration_limit
+      rp_rs_max: 0.3                    # same as detection.duration_limit
     plausibility:
       severity: hard
       planet_radius_min_rearth: 0.4

@@ -59,7 +59,7 @@ def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
         if not dossier.stale_inputs(model_env, (SIGNAL,)):  # a model of another signal is ignored
             m = model_env.data
             model = ModelInfo(
-                m.rp_rs, m.planet_radius_rearth, m.duration_hours, m.method, m.failure
+                m.rp_rs, m.planet_radius_rearth, m.duration_hours, m.method, m.failure, m.a_rs
             )
     catalog = None
     if dossier.exists(CATALOG):
@@ -86,5 +86,6 @@ def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
         model=model,
         catalog=catalog,
         target_tmag=star.tmag if star else None,
+        stellar_teff=star.teff_k if star else None,
         neighbors=tuple((n.separation_arcsec, n.tmag) for n in star.neighbors) if star else (),
     )
