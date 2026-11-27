@@ -42,7 +42,7 @@ def test_alarms_stop_the_run() -> None:
 
     planet = {"group": "planet_small", "period_days": 3.0}
     fp = {"group": "false_positive", "period_days": 2.0}
-    assert check_alarm(planet, Outcome(1, "contaminated", flags=2), None)
+    assert check_alarm(planet, Outcome(1, "contaminated", flags=2), None) is None  # set apart
     assert "grave" in (
         check_alarm(planet, Outcome(1, "ok", final="false_positive", period_days=3.01), None) or ""
     )

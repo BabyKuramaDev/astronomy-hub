@@ -153,6 +153,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--set", default="v0.1", dest="set_id")
     parser.add_argument("--compare", action="store_true", help="agents only: against the baseline")
     parser.add_argument("--splits", default="calib,dev", help="holdout only when named")
+    parser.add_argument(
+        "--aggregate-only",
+        action="store_true",
+        help="write and print only the aggregated report (the holdout)",
+    )
     args = parser.parse_args(argv)
     root = evals_dir() / "results" / args.set_id
     labels = json.loads((evals_dir() / "sets" / args.set_id / "set.json").read_text())
@@ -167,8 +172,15 @@ def main(argv: list[str] | None = None) -> int:
         base_index = Index(root / "baseline.jsonl")
         base_key, _ = latest(base_index)
         diff = compare(stars, outcomes, base_index.outcomes(base_key))
-    private = report(args.kind, labels, key, rows, result, diff, public=False)
     public = report(args.kind, labels, key, rows, result, diff, public=True)
+    tag = "-".join(sorted(splits))
+    public_dir = REPO / "evals" / "results"
+    public_dir.mkdir(exist_ok=True)
+    if args.aggregate_only:  # no per-star file at all: the set stays usable for 0.2
+        (public_dir / f"{args.set_id}-{args.kind}-{tag}.md").write_text(public)
+        print(public, file=sys.stdout)
+        return 0
+    private = report(args.kind, labels, key, rows, result, diff, public=False)
     (root / f"{args.kind}.md").write_text(private)
     (root / f"{args.kind}.json").write_text(
         json.dumps({"key": key, **result, "compare": diff}, indent=1, sort_keys=True) + "\n"

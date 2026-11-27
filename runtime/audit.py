@@ -151,6 +151,32 @@ def _strip_redirections(words: list[str]) -> list[str]:
     return out
 
 
+FIND_FORBIDDEN = frozenset({"-delete", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"})
+
+
+def _find_starts(words: list[str]) -> list[str]:
+    """The starting paths of `find`: the words before the expression."""
+    out = []
+    for w in words[1:]:
+        if w.startswith("-") or w in ("(", "!", ")"):
+            break
+        out.append(w)
+    return out or ["."]
+
+
+def _check_find(words: list[str]) -> str | None:
+    """find may only read: no -delete, -ok or file-writing actions, and -exec only of a
+    read-only command of the allowlist (cat, head, ls...), never a shell or another program."""
+    for i, w in enumerate(words):
+        if w in FIND_FORBIDDEN:
+            return f"find with {w}"
+        if w in ("-exec", "-execdir"):
+            program = words[i + 1] if i + 1 < len(words) else ""
+            if program not in READ_ONLY or program in ("find", "cd"):
+                return f"find -exec of something that is not a read-only command: {program or '?'}"
+    return None
+
+
 def check_command(command: str) -> str | None:
     """None if every command is a repository tool or a read-only inspection; else why not."""
     try:
@@ -184,6 +210,11 @@ def check_command(command: str) -> str | None:
             if wrapped and _is_tool(wrapped[0]):
                 continue
             return "timeout wraps something that is not a repository tool"
+        if program == "find":  # read-only find; its paths are judged by the read audit
+            problem = _check_find(words)
+            if problem:
+                return problem
+            continue
         if _is_tool(program) or program in READ_ONLY:
             continue
         return f"not a repository tool or a read-only command: {program}"
@@ -238,6 +269,9 @@ def read_paths(command: str) -> list[str]:
         args = _path_args(words[1:])
         if program == "cd":
             cwd = posixpath.normpath(posixpath.join(cwd, args[0] if args else "/root"))
+            continue
+        if program == "find":
+            paths += [posixpath.normpath(posixpath.join(cwd, a)) for a in _find_starts(words)]
             continue
         if program in NOT_READS or program not in READ_ONLY:
             continue

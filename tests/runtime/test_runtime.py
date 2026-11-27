@@ -457,3 +457,28 @@ def test_timeout_around_a_tool_and_pgrep_are_allowed(command: str, flagged: bool
     from runtime.audit import check_command
 
     assert (check_command(command) is not None) is flagged
+
+
+@pytest.mark.parametrize(
+    ("command", "flagged"),
+    [
+        (
+            "cd /workspace/astronomy-hub && find workspace/exoplanets/100100827 -name review.json"
+            r" -exec cat {} \;",
+            False,
+        ),
+        (
+            "cd /workspace/astronomy-hub && find workspace/exoplanets/100100827 -name '*.json'",
+            False,
+        ),
+        ("cd /workspace/astronomy-hub && find workspace/exoplanets/100100827 -delete", True),
+        (r"cd /workspace/astronomy-hub && find workspace/exoplanets/1 -exec sh -c 'x' \;", True),
+        (r"cd /workspace/astronomy-hub && find workspace/exoplanets/100100827 -ok rm {} \;", True),
+        ("cd /workspace/astronomy-hub && find tests/fixtures -name '*.json'", True),  # outside
+    ],
+)
+def test_find_reads_only_inside_the_dossier(command: str, flagged: bool) -> None:
+    from runtime.audit import allowed_path, check_command, read_paths
+
+    outside = [p for p in read_paths(command) if not allowed_path(p, TIC)]
+    assert (check_command(command) is not None or bool(outside)) is flagged

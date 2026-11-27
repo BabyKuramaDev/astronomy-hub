@@ -141,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--from", dest="from_stage", choices=STAGES, default="start")
     parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="never print a star (the holdout): progress counts only",
+    )
     args = parser.parse_args(argv)
     root = evals_dir()
     labels = json.loads((root / "sets" / args.set_id / "set.json").read_text())
@@ -167,12 +172,15 @@ def main(argv: list[str] | None = None) -> int:
             index.add(key, out, commit=commit, code=code, **info)
             with lock:
                 finished[0] += 1
-                print(
-                    f"[{finished[0]}/{todo}] TIC {out.tic_id}: {out.status} {out.final or ''} "
-                    f"{out.active_seconds:.0f}s",
-                    file=sys.stderr,
-                    flush=True,
+                detail = (
+                    ""
+                    if args.quiet
+                    else (
+                        f" TIC {out.tic_id}: {out.status} {out.final or ''} "
+                        f"{out.active_seconds:.0f}s"
+                    )
                 )
+                print(f"[{finished[0]}/{todo}]{detail}", file=sys.stderr, flush=True)
 
     with ThreadPoolExecutor(args.workers) as pool:
         for future in [pool.submit(lane, k) for k in range(args.workers)]:

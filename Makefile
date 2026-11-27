@@ -1,4 +1,4 @@
-.PHONY: install test test-network test-platform lint format dossier hello probe eval-set eval-baseline eval-pilot eval-dev
+.PHONY: install test test-network test-platform lint format dossier hello probe eval-set eval-baseline eval-pilot eval-dev eval-holdout
 
 MODE ?= eval
 
@@ -52,3 +52,11 @@ eval-dev:
 	@test -n "$(CAP)" || (echo "make eval-dev needs CAP=<cents>, its own spend cap" >&2; exit 2)
 	uv run python -m runtime.eval_agents --split dev --milestone M4-dev --cap-cents $(CAP)
 	uv run python -m evals.scorer agents --compare
+
+# The holdout: run once, at the end; only aggregated tables are printed (no star is shown).
+eval-holdout:
+	@test -n "$(CAP)" || (echo "make eval-holdout needs CAP=<cents>, its own spend cap" >&2; exit 2)
+	uv run python -m evals.baseline --set v0.1 --splits holdout --quiet
+	uv run python -m evals.scorer baseline --splits holdout --aggregate-only
+	uv run python -m runtime.eval_agents --split holdout --milestone M4-holdout --cap-cents $(CAP) --quiet
+	uv run python -m evals.scorer agents --splits holdout --aggregate-only

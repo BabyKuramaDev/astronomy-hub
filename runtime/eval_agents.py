@@ -46,6 +46,7 @@ class UsageLimitError(RuntimeError):
     """The account's API usage limit was reached: stop the run, never retry."""
 
 
+MAX_FLAGGED = 3  # runs with audit flags, in total under the key, before the run stops
 MAST_PAUSE_AFTER = 3  # stars in a row failing on MAST before the run pauses
 MAST_PROBE_EVERY_S = 300.0
 MAST_PROBES = 6  # half an hour of waiting at most, then the run stops
@@ -160,7 +161,7 @@ def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[O
         summary = json.loads(result.summary_file.read_text())
         events = (result.summary_file.parent / "events.jsonl").read_text()
         if USAGE_LIMIT.search(events) and result.dossier is None:
-            raise UsageLimitError(f"TIC {tic}: the session hit the API usage limit")
+            raise UsageLimitError("a session hit the API usage limit")
         out = from_agent_run(summary, no_data_in_events=bool(NO_DATA.search(events)))
         attempts.append(
             {
@@ -174,7 +175,7 @@ def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[O
             break
         if mast_failure(out, events) and not wait_for_mast():
             break  # do not spend another session while MAST is down
-        print(f"TIC {tic}: retrying after {result.stop_reason}", file=sys.stderr)
+        print(f"retrying a session after {result.stop_reason}", file=sys.stderr)
     total = sum(a["cost_cents"] for a in attempts)
     failed_on_mast = mast_failure(out, events)
     out = replace(out, cost_cents=total)
@@ -213,10 +214,9 @@ def baseline_outcomes(root: Path, set_id: str, set_hash: str) -> dict[int, Outco
 
 
 def check_alarm(label: dict[str, Any], out: Outcome, base: Outcome | None) -> str | None:
-    """Stop the run on a contaminated session, a grave error (a planet rejected on its
-    catalog period) or a false positive reaching tier A that the baseline did not accept."""
-    if out.status == "contaminated":
-        return f"contaminated run ({out.flags} audit flags before decide)"
+    """Stop the run on a grave error (a planet rejected on its catalog period) or a false
+    positive reaching tier A that the baseline did not accept. A run with audit flags is
+    set apart and counted, not an alarm by itself (see MAX_FLAGGED)."""
     planet = label["group"] in ("planet_deep", "planet_small")
     if (
         planet
@@ -249,6 +249,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--milestone", default="M4")
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--retries", type=int, default=1)
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="never print a star (the holdout): counts and alarms only",
+    )
     args = parser.parse_args(argv)
     root = evals_dir()
     labels = json.loads((root / "sets" / args.set_id / "set.json").read_text())
@@ -299,6 +304,13 @@ def main(argv: list[str] | None = None) -> int:
     queue = list(todo)
     lock = threading.Lock()
     mast_streak = [0]
+    done = [0]
+
+    def name(tic: int) -> str:
+        """A star as the log shows it: by TIC, or anonymous with --quiet (the holdout)."""
+        return "a star" if args.quiet else f"TIC {tic}"
+
+    flagged = [sum(1 for o in index.outcomes(key).values() if o.status == "contaminated")]
 
     def worker() -> None:
         nonlocal stopped
@@ -312,16 +324,24 @@ def main(argv: list[str] | None = None) -> int:
             except SpendCapError as exc:
                 with lock:
                     stopped = str(exc)
-                print(f"TIC {tic}: not started: {exc}", file=sys.stderr)
+                print(f"{name(tic)}: not started: {exc}", file=sys.stderr)
                 return
             except UsageLimitError as exc:  # not recorded: the next run retakes the star
                 with lock:
                     stopped = f"API usage limit reached: {exc}"
-                print(f"TIC {tic}: stopped by the API usage limit", file=sys.stderr)
+                print(f"{name(tic)}: stopped by the API usage limit", file=sys.stderr)
                 return
             index.add(key, out, commit=commit, versions=ver, agent_names=agent_names(), **info)
             alarm = check_alarm(labels_by_tic[tic], out, baseline.get(tic))
             with lock:
+                if out.status == "contaminated":
+                    flagged[0] += 1
+                    print(
+                        f"{name(tic)}: audit flags, set apart ({flagged[0]} in total)",
+                        file=sys.stderr,
+                    )
+                    if flagged[0] >= MAX_FLAGGED and not alarm:
+                        alarm = f"{flagged[0]} runs with audit flags in total"
                 mast_streak[0] = mast_streak[0] + 1 if info.get("mast_failure") else 0
                 pause = mast_streak[0] >= MAST_PAUSE_AFTER
             if pause:
@@ -332,16 +352,25 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     with lock:
                         stopped = "MAST did not come back: stopped, resume later"
+            with lock:
+                done[0] += 1
+            detail = (
+                ""
+                if args.quiet
+                else (
+                    f": {out.status} {out.final or ''} {out.tier or ''} "
+                    f"{out.cost_cents / 100:.2f} USD flags={out.flags}"
+                )
+            )
             print(
-                f"TIC {tic}: {out.status} {out.final or ''} {out.tier or ''} "
-                f"{out.cost_cents / 100:.2f} USD flags={out.flags}"
+                f"[{done[0]}/{len(todo)}] {name(tic)}{detail}"
                 + (f"  ALARM: {alarm}" if alarm else ""),
                 file=sys.stderr,
                 flush=True,
             )
             if alarm:
                 with lock:
-                    alarms.append(f"TIC {tic}: {alarm}")
+                    alarms.append(f"{name(tic)}: {alarm}")
 
     threads = [threading.Thread(target=worker) for _ in range(args.workers)]
     for t in threads:
