@@ -53,3 +53,16 @@ def test_alarms_stop_the_run() -> None:
     assert "tier A" in (check_alarm(fp, accepted_a, Outcome(2, "ok", final="inconclusive")) or "")
     assert check_alarm(fp, accepted_a, Outcome(2, "ok", final="candidate", tier="A")) is None
     assert check_alarm(fp, Outcome(2, "ok", final="candidate", tier="B"), None) is None
+
+
+def test_mast_failures_are_recognised_and_waited_out() -> None:
+    from runtime.eval_agents import mast_failure, wait_for_mast
+
+    events = '"text": "error: MAST unavailable: product list failed: RemoteServiceError"'
+    assert mast_failure(Outcome(1, "incomplete"), events)
+    assert not mast_failure(Outcome(1, "ok", final="no_signal"), events)
+    answers = iter([False, False, True])
+    waits: list[float] = []
+    assert wait_for_mast(probe=lambda: next(answers), sleep=waits.append)
+    assert len(waits) == 2
+    assert not wait_for_mast(probe=lambda: False, sleep=lambda _s: None)

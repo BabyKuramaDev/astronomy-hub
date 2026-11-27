@@ -35,10 +35,13 @@ RUNS = REPO / "runs"
 SANDBOX_CODE = ("bin", "contexts", "shared", "scripts", "missions")
 PLATFORM_STOPS = {"terminated", "stream_lost", "retries_exhausted"}
 MAST_ERROR = re.compile(
-    r"fetch-lightcurves.{0,400}?(HTTPError|ConnectionError|Timeout|RemoteDisconnected"
-    r"|ServiceUnavailable|exit(ed)? (code )?1\b)",
+    r"MAST unavailable|RemoteServiceError|fetch-lightcurves.{0,400}?(HTTPError|ConnectionError"
+    r"|Timeout|RemoteDisconnected|ServiceUnavailable|exit(ed)? (code )?1\b)",
     re.S,
 )
+MAST_PAUSE_AFTER = 3  # stars in a row failing on MAST before the run pauses
+MAST_PROBE_EVERY_S = 300.0
+MAST_PROBES = 6  # half an hour of waiting at most, then the run stops
 NO_DATA = re.compile(r"no SPOC 120 s light curves|download returned no file|no valid cadences")
 
 
@@ -95,6 +98,41 @@ def retryable(summary: dict[str, Any], out: Outcome, events: str) -> bool:
     return summary["stop_reason"] in PLATFORM_STOPS or bool(MAST_ERROR.search(events))
 
 
+def mast_failure(out: Outcome, events: str) -> bool:
+    return out.status == "incomplete" and bool(MAST_ERROR.search(events))
+
+
+def mast_answers() -> bool:
+    """A small MAST query from here (WASP-18 b's light curves), with a short timeout."""
+    try:
+        from astroquery.mast import Observations, conf
+
+        with conf.set_temp("timeout", 60):
+            rows = Observations.query_criteria(
+                target_name="100100827", obs_collection="TESS", dataproduct_type="timeseries"
+            )
+        return len(rows) > 0
+    except Exception:
+        return False
+
+
+def wait_for_mast(probe: Any = mast_answers, sleep: Any = None) -> bool:
+    """Wait until MAST answers, probing every MAST_PROBE_EVERY_S; False if it never does."""
+    import time
+
+    sleep = sleep or time.sleep
+    for k in range(MAST_PROBES):
+        if probe():
+            return True
+        print(
+            f"MAST does not answer; waiting {MAST_PROBE_EVERY_S:.0f} s ({k + 1}/{MAST_PROBES})",
+            file=sys.stderr,
+            flush=True,
+        )
+        sleep(MAST_PROBE_EVERY_S)
+    return probe()
+
+
 def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[Outcome, dict]:
     from runtime.platform import ManagedAgentsPlatform
 
@@ -121,10 +159,13 @@ def run_star(tic: int, base: RunConfig, budget: Budget, retries: int) -> tuple[O
         )
         if not retryable(summary, out, events) or attempt == retries:
             break
+        if mast_failure(out, events) and not wait_for_mast():
+            break  # do not spend another session while MAST is down
         print(f"TIC {tic}: retrying after {result.stop_reason}", file=sys.stderr)
     total = sum(a["cost_cents"] for a in attempts)
+    failed_on_mast = mast_failure(out, events)
     out = replace(out, cost_cents=total)
-    return out, {"attempts": attempts}
+    return out, {"attempts": attempts, "mast_failure": failed_on_mast}
 
 
 def reaudit(index: Index, key: str, tics: set[int]) -> dict[int, str]:
@@ -244,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     alarms: list[str] = []
     queue = list(todo)
     lock = threading.Lock()
+    mast_streak = [0]
 
     def worker() -> None:
         nonlocal stopped
@@ -261,6 +303,17 @@ def main(argv: list[str] | None = None) -> int:
                 return
             index.add(key, out, commit=commit, versions=ver, agent_names=agent_names(), **info)
             alarm = check_alarm(labels_by_tic[tic], out, baseline.get(tic))
+            with lock:
+                mast_streak[0] = mast_streak[0] + 1 if info.get("mast_failure") else 0
+                pause = mast_streak[0] >= MAST_PAUSE_AFTER
+            if pause:
+                print(f"{mast_streak[0]} stars in a row failed on MAST: pausing", file=sys.stderr)
+                if wait_for_mast():
+                    with lock:
+                        mast_streak[0] = 0
+                else:
+                    with lock:
+                        stopped = "MAST did not come back: stopped, resume later"
             print(
                 f"TIC {tic}: {out.status} {out.final or ''} {out.tier or ''} "
                 f"{out.cost_cents / 100:.2f} USD flags={out.flags}"

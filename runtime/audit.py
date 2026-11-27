@@ -12,6 +12,7 @@ it happened before decide.
 
 import json
 import posixpath
+import re
 import shlex
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,6 +22,7 @@ TOOL_ENTRYPOINTS = ("bin/hub", "bin/setup-sandbox")
 READ_ONLY = frozenset(
     {
         "ls",
+        "pgrep",  # lists processes; reads no file and reaches no network
         "cat",
         "head",
         "tail",
@@ -60,7 +62,7 @@ DOCS = (
     f"{SANDBOX_REPO}/missions/exoplanets/mission.yaml",
     "/mnt/session/outputs",
 )
-NOT_READS = frozenset({"echo", "printf", "pwd", "date", "true", "test", "[", "cd"})
+NOT_READS = frozenset({"echo", "printf", "pwd", "date", "true", "test", "[", "cd", "pgrep"})
 FIRST_ARG_IS_PATTERN = frozenset({"grep", "jq"})
 READ_TOOLS = {"read": ("file_path", "path"), "glob": ("path", "pattern"), "grep": ("path",)}
 OPERATORS = frozenset({";", "&&", "||", "|", "&", "(", ")", "|&"})
@@ -118,6 +120,37 @@ def _segments(tokens: list[str]) -> list[list[str]]:
     return [seg for seg in out if seg]
 
 
+TIMEOUT_DURATION = re.compile(r"^\d+(\.\d+)?[smhd]?$")
+
+
+def _unwrap_timeout(words: list[str]) -> list[str]:
+    """The command that `timeout [options] DURATION command...` runs."""
+    rest = words[1:]
+    while rest and rest[0].startswith("-"):
+        option = rest.pop(0)
+        if option in ("-s", "-k", "--signal", "--kill-after") and rest:
+            rest.pop(0)  # the option's value
+    if rest and TIMEOUT_DURATION.match(rest[0]):
+        return rest[1:]
+    return []
+
+
+def _strip_redirections(words: list[str]) -> list[str]:
+    """Drop redirections ("2>&1", "> /dev/null", "<file") and their targets: they are not
+    programs. Writes to files are judged apart, by _redirects_to_a_file."""
+    out, i = [], 0
+    while i < len(words):
+        w = words[i]
+        if w and set(w) <= set("<>&"):
+            if out and out[-1].isdigit():
+                out.pop()  # the file descriptor before the operator
+            i += 2  # the operator and its target
+            continue
+        out.append(w)
+        i += 1
+    return out
+
+
 def check_command(command: str) -> str | None:
     """None if every command is a repository tool or a read-only inspection; else why not."""
     try:
@@ -136,6 +169,7 @@ def check_command(command: str) -> str | None:
     if substitution or any("`" in t for t in tokens):
         return "runs a command substitution"
     for words in _segments(tokens):
+        words = _strip_redirections(words)
         while words and (
             words[0] in STRUCTURE or ("=" in words[0] and not words[0].startswith("-"))
         ):
@@ -145,6 +179,11 @@ def check_command(command: str) -> str | None:
         if words[0] == "for":  # "for x in a b": the loop header runs nothing
             continue
         program = words[0]
+        if program == "timeout":  # only around a repository tool
+            wrapped = _unwrap_timeout(words)
+            if wrapped and _is_tool(wrapped[0]):
+                continue
+            return "timeout wraps something that is not a repository tool"
         if _is_tool(program) or program in READ_ONLY:
             continue
         return f"not a repository tool or a read-only command: {program}"
@@ -191,6 +230,8 @@ def read_paths(command: str) -> list[str]:
             words[0] in STRUCTURE or ("=" in words[0] and not words[0].startswith("-"))
         ):
             words = words[1:]
+        if words and words[0] == "timeout":
+            words = _unwrap_timeout(words)
         if not words or words[0] in CLOSERS or words[0] == "for" or _is_tool(words[0]):
             continue
         program = words[0]

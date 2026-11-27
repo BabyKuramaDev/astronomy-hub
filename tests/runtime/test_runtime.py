@@ -434,3 +434,26 @@ def test_read_tools_are_audited() -> None:
         },
     ]
     assert [f.event_id for f in audit(events, TIC)] == ["r1", "r3"]
+
+
+@pytest.mark.parametrize(
+    ("command", "flagged"),
+    [
+        (
+            "cd /workspace/astronomy-hub && timeout 280 bin/hub acquisition fetch-star --tic 1",
+            False,
+        ),
+        (
+            "(timeout 250 bin/hub acquisition fetch-star --tic 1; echo exit $?) 2>&1 | tail -5",
+            False,
+        ),
+        ("timeout -k 5 250s bin/hub acquisition fetch-star --tic 1", False),
+        ("pgrep -af 'bin/hub|fetch' | head", False),
+        ("timeout 30 curl https://exofop.ipac.caltech.edu/x", True),
+        ("timeout 30 python3 -c 'print(1)'", True),
+    ],
+)
+def test_timeout_around_a_tool_and_pgrep_are_allowed(command: str, flagged: bool) -> None:
+    from runtime.audit import check_command
+
+    assert (check_command(command) is not None) is flagged
