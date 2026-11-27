@@ -54,6 +54,12 @@ def pooled(labels: list[dict], outcomes: dict[int, Outcome]) -> dict[str, Any]:
             if s["group"] == "false_positive" and outcomes[s["tic_id"]].final == "candidate"
         },
         "grave": {s["tic_id"] for s in planets if outcomes[s["tic_id"]].final == "false_positive"},
+        "grave_catalog_period": {
+            s["tic_id"]
+            for s in planets
+            if outcomes[s["tic_id"]].final == "false_positive"
+            and period_match(outcomes[s["tic_id"]].period_days, s["period_days"])
+        },
     }
 
 
@@ -93,7 +99,8 @@ def section(
         "",
         f"Planets, calib and dev pooled: final recall {p['final_recall']} "
         f"({p['final_ok']} of {p['planets']}); accepted false positives {len(p['accepted_fp'])}; "
-        f"grave errors {len(p['grave'])}.",
+        f"grave errors {len(p['grave'])} ({len(p['grave_catalog_period'])} on the catalog period, "
+        f"the rest on another signal).",
         "",
     ]
     out += [*table(result, public), "", "False positives:", "", *fp_table(result)]
