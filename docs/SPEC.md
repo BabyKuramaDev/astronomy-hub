@@ -273,7 +273,7 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 | `acquisition` | `fetch-star` | Trae parámetros de la estrella y sus vecinas cercanas | astroquery |
 | `preparation` | `clean` | Normaliza por sector, quita la tendencia, recorta outliers hacia arriba y une sectores | wotan |
 | `detection` | `search-period` | Busca períodos con BLS y escribe en `search.json` los mejores picos con su SNR y su SDE; descarta los de profundidad no positiva y los armónicos, dejándolos anotados. Repite la búsqueda sobre la curva invertida y guarda su SNR máximo | astropy |
-| `detection` | `select-peak` | Registra la elección del Buscador: escribe `signal.json` desde `search.json` con `--peak <id>` o `--no-signal`. Rechaza un pico bajo `snr_min` o `min_transits`. Acepta `--reason`, que va a `log.jsonl` | (propia) |
+| `detection` | `select-peak` | Registra la elección del Buscador: escribe `signal.json` desde `search.json` con `--peak <id>` o `--no-signal`. Rechaza un pico con SDE bajo `sde_min` o con menos de `min_transits` tránsitos. Acepta `--reason`, que va a `log.jsonl` | (propia) |
 | `detection` | `fold` | Pliega la curva en un pico de `search.json` o en un período dado; guarda datos, figura y un resumen numérico que también imprime por stdout | astropy, matplotlib |
 | `modeling` | `fit-transit` | Ajusta un modelo de tránsito con jitter. `--mode quick` (por defecto) usa mínimos cuadrados y tarda segundos; `--mode mcmc` usa emcee, informa la convergencia y solo corre si `vetting.json` dice `candidate` | batman, scipy, emcee |
 | `catalog` | `crossmatch` | Busca el TIC en `pscomppars` y en la lista TOI del NASA Exoplanet Archive (TAP) y en las CTOI de ExoFOP; marca qué matches coinciden en período con `signal.json` | urllib |
@@ -288,7 +288,7 @@ Una tool es un caso de uso expuesto como comando; toda la astronomía vive acá 
 
 **`mission.yaml`**
 
-Cada tool lee de `missions/<misión>/mission.yaml` los parámetros que consume, con una sección por contexto. El schema vive en `shared/mission.py` y rechaza claves desconocidas. Los valores son parámetros de diseño, no datos de ninguna estrella; el único que sale de este spec es `snr_min: 8`, de la prueba 3.
+Cada tool lee de `missions/<misión>/mission.yaml` los parámetros que consume, con una sección por contexto. El schema vive en `shared/mission.py` y rechaza claves desconocidas. Los valores son parámetros de diseño, no datos de ninguna estrella. Los umbrales calibrados en la fase A de M5 (`sde_min`, la densidad de respaldo, el factor de excentricidad, centroide, par-impar y secundario) llevan su consulta o su curva junto al parámetro.
 
 Regla de selección de sectores (`acquisition.sector_selection.rule: longest_consecutive_run`), determinista y con preferencia por sectores consecutivos:
 
@@ -340,6 +340,12 @@ Solo cuentan como disponibles las observaciones SPOC de un sector. MAST también
 - Piloto de 5 estrellas de desarrollo con agentes: 1,21 USD (0,11 a 0,48 por estrella; el planeta que recorre toda la cadena es el más caro), unos 2 minutos activos por estrella, sin errores de plataforma ni reintentos. Los agentes eligieron igual que el script en 4 de 5 y mejor en 1, un falso positivo que el script dejó `inconclusive`. La auditoría marcó una lectura que era un `2>/dev/null` mal tokenizado; corregido, y `--reaudit` recalcula las corridas guardadas sin lanzar sesiones.
 - La línea de `package-dossier` en `log.jsonl` ahora viaja dentro del tar.
 
+**Notas de la fase A de M5 (reglas contra el baseline, sin créditos)**
+
+- Se calibra solo contra el set de calibración (`v0.1-calib`, 150 estrellas: 30 planetas profundos, 30 chicos, 60 falsos positivos y 30 sin señal, mismos filtros, sin repetir las 50) y la partición de desarrollo; el reservado no se corre ni se abre. Cada cambio va en su commit con su antes y después (`evals.rules --stage detection | vetting | fix`).
+- Regla de detección: SDE del pico elegido, calibrada reproduciendo `select-peak` sobre `search.json`. El SNR no separa planetas de estrellas sin señal (AUC 0,53); la razón contra el piso de la curva invertida, 0,77; el SDE, 0,81. Curva completa en calibración (planetas detectados en su período de catálogo de 60 / falsas detecciones de 30 estrellas sin señal): 6: 50/16 · 7: 50/10 · 7,5: 50/6 · 8 a 9: 49/4 · 9,25 a 9,5: 47/4 · 10: 46/3 · 11: 45/3 · 12: 42/3 · 13: 40/3 · 14 a 15: 38/2 · 16: 33/1 · 17: 32/0 · 18: 28/0 · 20: 21/0 · 25: 11/0 (la regla anterior, SNR ≥ 8: 47/16). `sde_min = 9` está en el borde superior de la meseta 8 a 9 (dos planetas tienen SDE entre 9 y 9,25); el centro sería 8,5, con el mismo resultado en calibración y desarrollo. Confirmado en desarrollo sin retocar: 8 de 12 planetas, 1 de 6 estrellas sin señal.
+- Un error grave es solo un planeta descartado en su período de catálogo; una señal espuria descartada en una estrella con planeta es una detección perdida.
+
 **Las diez pruebas de descarte**
 
 Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hunt) (licencia MIT, con atribución), junto con sus controles negativos sintéticos. Los umbrales son los de la referencia salvo donde se indica, y viven en `mission.yaml` (`vetting.gates`) junto con la severidad de cada prueba.
@@ -348,7 +354,7 @@ Se portan de [open-exoplanet-hunt](https://github.com/Th0rgal/open-exoplanet-hun
 | --- | --- | --- | --- | --- |
 | 1 | `catalog` | Duplicado en catálogos de planetas, TOI y CTOI | `info` | No hay match con `period_match` en `catalog.json`; si no hay `catalog.json` (modo eval), queda `marginal` con nota y no entra al veredicto |
 | 2 | `coverage` | Tránsitos suficientes con datos | `soft` | ≥ 6 tránsitos con datos, en uno o más sectores; con un solo sector, la nota dice que la repetición entre sectores no se prueba (eso es de la prueba 4 cuando hay varios). Cambiado en la fase A de M5: antes exigía ≥ 2 sectores |
-| 3 | `snr` | SNR combinado de BLS | `soft` | SNR ≥ `snr_min` (8) y SNR > `inverted_snr_max` |
+| 3 | `detection` | Regla de detección | `soft` | SDE de la señal ≥ `sde_min` (9). El SNR y el piso de la curva invertida se informan como dato. Cambiado en la fase A de M5 (antes `snr`: SNR ≥ 8 y por encima del piso); ver la calibración en Notas de la fase A |
 | 4 | `holdout` | Predicción a ciegas dejando un sector afuera (la referencia lo llama época) | `soft` | Z mínimo ≥ 2 y Z medio ≥ 3,5 en los sectores retenidos |
 | 5 | `odd-even` | Profundidades de tránsitos pares e impares | `hard` | t de Welch sobre las profundidades por tránsito; el error de cada grupo es el mayor entre el fotométrico y la dispersión entre sus tránsitos, y los grados de libertad de Welch–Satterthwaite hacen que con pocos tránsitos haga falta más evidencia. Falla con p < 0,0027 (3σ normal de dos colas) y queda `marginal` con p < 0,05. Cambiado en la fase A de M5: la regla anterior (2,5σ como si fuera normal) descartaba 3 planetas confirmados con 2 a 7 tránsitos por grupo y p de Welch entre 0,022 y 0,11; los falsos positivos que rechaza tienen p entre 6·10⁻¹⁰ y 1,6·10⁻³ |
 | 6 | `secondary` | Eclipse secundario en fase 0,5 | `hard` | Se compara con la ocultación más profunda que podría mostrar un planeta que hace ese tránsito, del lado permisivo: albedo geométrico 1 más un lado diurno a la temperatura sin redistribución y con albedo de Bond 0, con el menor a/R* (el del ajuste o el de la densidad estelar), el mayor cociente de radios (tope 0,3) y la Teff más alta (sin Teff, el límite de Rayleigh-Jeans); Planck y constantes de astropy, banda TESS rectangular de 600 a 1000 nm. Falla solo si el secundario es significativo (≥ 2,5σ) y su extremo inferior a 3σ supera 2 veces esa cota; significativo y por encima de la cota sin ese margen queda `marginal`; por debajo pasa con nota. Cambiado en la fase A de M5: la regla anterior (menos del 30% del primario) dejó llegar a `candidate` a dos binarias eclipsantes |

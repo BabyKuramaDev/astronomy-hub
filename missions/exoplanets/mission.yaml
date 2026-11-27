@@ -1,6 +1,5 @@
 # Parameters consumed by the tools. Schema: shared/mission.py (unknown keys are rejected).
-# These are design parameters, not values of any particular star. snr_min comes from
-# the spec (vetting gate 3).
+# These are design parameters, not values of any particular star.
 name: exoplanets
 description: Search for exoplanet transits in public TESS light curves.
 
@@ -57,7 +56,15 @@ detection:
   harmonic_max_integer: 12       # ratios n/m with n, m <= 12 (aliases such as 7/2, 8/3);
                                  # integer multiples and submultiples are always checked
   harmonic_tolerance: 0.002      # relative tolerance for a harmonic ratio
-  snr_min: 8.0
+  # Detection rule (M5 phase A): the chosen peak's SDE. Calibrated on the 150-star
+  # calibration set by replaying select-peak on search.json; SNR separated planets from
+  # quiet stars no better than chance (AUC 0.53), SDE best (AUC 0.81). Planets detected on
+  # their catalog period / false detections among 30 quiet stars, by threshold:
+  #   6: 50/16  7: 50/10  7.5: 50/6  8-9: 49/4  9.25-9.5: 47/4  10: 46/3  11: 45/3
+  #   12: 42/3  13: 40/3  14-15: 38/2  16: 33/1  17: 32/0  18: 28/0  20: 21/0  25: 11/0
+  # (old rule SNR >= 8: 47/16). 9 is the upper edge of the 8-9 plateau; confirmed on the
+  # development split without retuning: 8 of 12 planets, 1 of 6 quiet stars.
+  sde_min: 9.0
   floor_mask_durations: 0.75     # the noise floor (BLS on the inverted curve) masks the top
                                  # peak's transits within +/- 0.75 durations: inverted, they
                                  # become bumps that make any box elsewhere look like a dip
@@ -97,7 +104,7 @@ vetting:
   gates:
     catalog: {severity: info}
     coverage: {severity: soft, min_transits: 6}  # one sector is enough (M5 phase A)
-    snr: {severity: soft}        # SNR >= detection.snr_min and above search.json inverted_snr_max
+    detection: {severity: soft}  # the signal's SDE >= detection.sde_min (SNR is reported only)
     holdout: {severity: soft, min_z: 2.0, min_mean_z: 3.5, period_window: 0.0008, n_periods: 3000}
     # Welch's t on per-transit depths, each group's error the larger of photometric and
     # scatter between transits (M5 phase A: the normal 2.5 sigma rule rejected 3 confirmed

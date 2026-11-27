@@ -41,7 +41,7 @@ class GateInputs:
     duration_hours: float
     depth_ppm: float
     snr: float
-    snr_min: float
+    sde_min: float
     inverted_snr_max: float
     time: np.ndarray  # lightcurve_clean.parquet
     flux: np.ndarray
@@ -53,6 +53,7 @@ class GateInputs:
     model: ModelInfo | None
     catalog: CatalogInfo | None
     target_tmag: float | None = None
+    sde: float | None = None  # signal.json's SDE (null in files written before M5)
     stellar_teff: Measurement | None = None
     # TIC neighbors from star.json: (separation in arcsec, Tmag)
     neighbors: tuple[tuple[float, float | None], ...] = ()

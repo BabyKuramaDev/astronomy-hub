@@ -58,7 +58,7 @@ def study(root: Path, fakes: int, rng: np.random.Generator) -> dict | None:
         cfg.measurement.window_durations.default,
         cfg.measurement.baseline_inner_durations,
     )
-    inputs = load_inputs(Dossier(root), mission.detection.snr_min)
+    inputs = load_inputs(Dossier(root), mission.detection.sde_min)
     duration = inputs.duration_hours / 24.0 * params.duration_scale
     real = shift_xy(inputs, inputs.epoch_btjd, duration, params)
     if real is None:

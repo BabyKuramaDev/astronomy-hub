@@ -25,10 +25,10 @@ Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [opt
 ## Tools
 
 - `bin/hub vetting run-gates --tic <TIC>`: runs the ten gates once and prints, per gate, status, severity, value, threshold and a note, plus `verdict_if_concluded`.
-- `bin/hub vetting run-gate --tic <TIC> --gate <id> [--duration-scale X] [--window-durations Y]`: reruns one gate with other measurement parameters (within the ranges in `vetting.measurement`); thresholds never change. Gates `catalog`, `coverage`, `snr` and `plausibility` cannot be rerun.
+- `bin/hub vetting run-gate --tic <TIC> --gate <id> [--duration-scale X] [--window-durations Y]`: reruns one gate with other measurement parameters (within the ranges in `vetting.measurement`); thresholds never change. Gates `catalog`, `coverage`, `detection` and `plausibility` cannot be rerun.
 - `bin/hub vetting conclude --tic <TIC> --rationale "<one sentence per gate that matters>"`: combines the runs of every gate (all pass: pass; all fail: fail; any mixture: marginal) and computes the verdict by rule: a hard fail is false_positive, a soft fail or any marginal is inconclusive, all passing is candidate. You only write the rationale.
 - `bin/hub detection fold --tic <TIC> --period <P> --epoch <T0> --duration <hours>` helps you look at a doubtful case.
 
 ## Gates
 
-`catalog` (info, never counts), `coverage`, `snr`, `holdout`, `odd-even`, `secondary`, `plausibility`, `centroid`, `coherence`, `rotation`. Severities and thresholds are in `vetting.gates` of the mission file. A significant secondary eclipse shallower than the mission's ratio passes: it is the occultation of a planet.
+`catalog` (info, never counts), `coverage`, `detection`, `holdout`, `odd-even`, `secondary`, `plausibility`, `centroid`, `coherence`, `rotation`. Severities and thresholds are in `vetting.gates` of the mission file. A significant secondary eclipse passes when it is within the deepest occultation a planet could show; it fails only when its 3 sigma lower end is well above that bound.

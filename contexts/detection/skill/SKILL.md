@@ -26,7 +26,7 @@ Run every tool from the repository as `bin/hub <context> <tool> --tic <TIC> [opt
 
 - `bin/hub detection search-period --tic <TIC>`: BLS over the clean curve. `peaks` lists the best distinct peaks (id, period, duration, depth, SNR, SDE, transits); `discarded` lists harmonics and non-positive depths. `inverted_snr_max` is the noise floor: the best SNR of the same search on the inverted curve, where every dip is noise.
 - `bin/hub detection fold --tic <TIC> --peak <id>` (or `--period --epoch --duration`): folds the curve and prints depth, out-of-transit scatter, odd/even depths with their significance and a binned profile. It writes `folds/<tag>.json` and a figure.
-- `bin/hub detection select-peak --tic <TIC> --peak <id> --reason "<why>"` or `--no-signal --reason "<why>"`: records the decision in `signal.json`. It refuses a peak below `detection.snr_min` or `detection.min_transits` (exit 2): pick another peak or record no signal.
+- `bin/hub detection select-peak --tic <TIC> --peak <id> --reason "<why>"` or `--no-signal --reason "<why>"`: records the decision in `signal.json`. It refuses a peak whose SDE is below `detection.sde_min` or with fewer than `detection.min_transits` transits (exit 2): pick another peak or record no signal.
 
 ## How to judge peaks
 

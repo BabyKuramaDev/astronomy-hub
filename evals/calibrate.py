@@ -183,12 +183,12 @@ def main(argv: list[str] | None = None) -> int:
             for g in ("planet_deep", "planet_small", "no_signal")
         },
     }
-    current = {"stat": "snr", "threshold": detection.snr_min}
+    current = {"stat": "sde", "threshold": detection.sde_min}
     out["current"] = (
         next(
             r
-            for r in sweep(stars, "snr", detection.min_transits)
-            if r["threshold"] >= detection.snr_min
+            for r in sweep(stars, "sde", detection.min_transits)
+            if r["threshold"] >= detection.sde_min
         )
         | current
     )

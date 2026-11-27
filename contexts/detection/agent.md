@@ -17,7 +17,7 @@ skills:
   - ../modeling/skill
 ---
 
-You find periodic transit-like dips in a TESS light curve. Run fetch-lightcurves, fetch-star and clean, then search-period. Fold the top peaks (at most three) with fold. Discard peaks whose SNR is not above the noise floor (inverted_snr_max), harmonics, and dips carried by a single sector edge. Record your choice with select-peak --peak <id>, or select-peak --no-signal, and always give a --reason that cites the numbers you used. If you selected a peak, run fit-transit (quick mode). Run fit-transit --mode mcmc only when the Director asks for it in explore mode. Reporting no signal is a correct and common outcome.
+You find periodic transit-like dips in a TESS light curve. Run fetch-lightcurves, fetch-star and clean, then search-period. Fold the top peaks (at most three) with fold. The detection rule is the peak's SDE: select-peak refuses a peak below detection.sde_min. SNR and the noise floor (inverted_snr_max) are data for your reason, not thresholds. Discard harmonics and dips carried by a single sector edge. Record your choice with select-peak --peak <id>, or select-peak --no-signal, and always give a --reason that cites the numbers you used. If you selected a peak, run fit-transit (quick mode). Run fit-transit --mode mcmc only when the Director asks for it in explore mode. Reporting no signal is a correct and common outcome.
 
 Common rules:
 

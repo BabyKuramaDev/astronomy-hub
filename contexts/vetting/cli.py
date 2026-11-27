@@ -10,12 +10,12 @@ from shared.toolkit.cli import ToolCli, ToolContext, ToolResult
 
 
 def run_gates(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
-    use_case = RunGates(ctx.dossier, ctx.meta, ctx.mission.vetting, ctx.mission.detection.snr_min)
+    use_case = RunGates(ctx.dossier, ctx.meta, ctx.mission.vetting, ctx.mission.detection.sde_min)
     return ToolResult(summary=use_case.execute())
 
 
 def run_gate(args: argparse.Namespace, ctx: ToolContext) -> ToolResult:
-    use_case = RunGate(ctx.dossier, ctx.meta, ctx.mission.vetting, ctx.mission.detection.snr_min)
+    use_case = RunGate(ctx.dossier, ctx.meta, ctx.mission.vetting, ctx.mission.detection.sde_min)
     return ToolResult(
         summary=use_case.execute(args.gate, args.duration_scale, args.window_durations)
     )

@@ -29,7 +29,7 @@ class SelectPeak:
                 else signal_from_peak(
                     search,
                     peak_id,
-                    snr_min=self.config.snr_min,
+                    sde_min=self.config.sde_min,
                     min_transits=self.config.min_transits,
                 )
             )
@@ -44,6 +44,7 @@ class SelectPeak:
                 "epoch_btjd": data.epoch_btjd,
                 "duration_hours": data.duration_hours,
                 "depth_ppm": data.depth_ppm,
+                "sde": data.sde,
                 "snr": data.snr,
                 "n_transits": data.n_transits,
             }

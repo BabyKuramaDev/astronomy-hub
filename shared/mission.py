@@ -79,7 +79,7 @@ class DetectionConfig(ContractModel):
     peak_separation: PositiveFloat
     harmonic_max_integer: Annotated[int, Field(ge=2)]
     harmonic_tolerance: PositiveFloat
-    snr_min: PositiveFloat
+    sde_min: PositiveFloat  # detection rule: the chosen peak's SDE (SNR is reported only)
     floor_mask_durations: PositiveFloat
     min_transits: PositiveInt
     fold: FoldConfig
@@ -216,7 +216,7 @@ class RotationGate(GateBase):
 class VettingGates(ContractModel):
     catalog: GateBase
     coverage: CoverageGate
-    snr: GateBase
+    detection: GateBase
     holdout: HoldoutGate
     odd_even: OddEvenGate = Field(alias="odd-even")
     secondary: SecondaryGate

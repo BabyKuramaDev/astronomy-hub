@@ -126,15 +126,16 @@ def test_inverted_planet_is_not_a_candidate() -> None:
     assert statuses["coherence"] == "fail"
 
 
-def test_snr_gate_uses_the_noise_floor() -> None:
-    cfg = CONFIG.gates.snr
-    fn = gate_spec("snr").fn  # type: ignore[union-attr]
+def test_detection_gate_uses_sde_only() -> None:
+    cfg = CONFIG.gates.detection
+    fn = gate_spec("detection").fn  # type: ignore[union-attr]
     base = make_inputs()
-    assert fn(replace(base, snr=12.0, inverted_snr_max=10.0), PARAMS, cfg).status == "pass"
-    floor = fn(replace(base, snr=12.0, inverted_snr_max=14.0), PARAMS, cfg)
-    assert floor.status == "fail"
-    assert "noise floor" in floor.note
-    assert fn(replace(base, snr=7.0, inverted_snr_max=3.0), PARAMS, cfg).status == "fail"
+    # SNR below the inverted floor no longer decides: SDE is the rule.
+    assert fn(replace(base, sde=12.0, snr=5.0, inverted_snr_max=14.0), PARAMS, cfg).status == "pass"
+    low = fn(replace(base, sde=7.0, snr=40.0, inverted_snr_max=3.0), PARAMS, cfg)
+    assert low.status == "fail"
+    assert "below sde_min" in low.note
+    assert fn(replace(base, sde=None), PARAMS, cfg).status == "marginal"
 
 
 @pytest.mark.parametrize(

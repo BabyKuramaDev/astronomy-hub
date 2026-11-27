@@ -11,7 +11,7 @@ REAL = Path(__file__).resolve().parents[2] / "missions"
 def test_exoplanets_mission_validates() -> None:
     mission = load_mission("exoplanets")
     assert mission.acquisition.sector_selection.rule == "longest_consecutive_run"
-    assert mission.detection.snr_min == 8.0
+    assert mission.detection.sde_min == 9.0
 
 
 def _write(tmp_path: Path, raw: dict) -> Path:
@@ -39,7 +39,7 @@ def test_unknown_key_is_rejected(tmp_path: Path, raw: dict) -> None:
 @pytest.mark.parametrize(
     ("section", "key", "value"),
     [
-        ("detection", "snr_min", -1),
+        ("detection", "sde_min", -1),
         ("detection", "period_min_days", 20.0),
         ("modeling", "jitter_ppm_range", [5.0, 1.0]),
         ("acquisition", "flux_column", "SAP_FLUX"),

@@ -28,7 +28,7 @@ def _column(table: dict[str, np.ndarray], name: str, size: int) -> np.ndarray:
     return np.asarray(table[name], dtype=float) if name in table else np.full(size, np.nan)
 
 
-def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
+def load_inputs(dossier: Dossier, sde_min: float) -> GateInputs:
     signal_env = dossier.read_envelope(SIGNAL, SignalFile)
     signal = signal_env.data
     if not signal.detected:
@@ -74,7 +74,8 @@ def load_inputs(dossier: Dossier, snr_min: float) -> GateInputs:
         duration_hours=signal.duration_hours,  # type: ignore[arg-type]
         depth_ppm=signal.depth_ppm,  # type: ignore[arg-type]
         snr=signal.snr,  # type: ignore[arg-type]
-        snr_min=snr_min,
+        sde_min=sde_min,
+        sde=signal.sde,
         inverted_snr_max=search.inverted_snr_max,
         time=np.asarray(clean["time_btjd"], dtype=float),
         flux=np.asarray(clean["flux"], dtype=float),

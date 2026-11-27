@@ -29,7 +29,8 @@ class SignalData(ContractModel):
     epoch_btjd: float | None = None
     duration_hours: PositiveFloat | None = None
     depth_ppm: PositiveFloat | None = None
-    snr: NonNegativeFloat | None = None
+    snr: NonNegativeFloat | None = None  # reported; the detection rule is on sde
+    sde: float | None = None  # signal detection efficiency of the chosen peak (M5 phase A)
     n_transits: PositiveInt | None = None
     sectors: Annotated[list[PositiveInt], Field(min_length=1)]
     method: NonEmptyStr

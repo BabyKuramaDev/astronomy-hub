@@ -94,10 +94,10 @@ class RunGates:
     dossier: Dossier
     meta: ToolMeta
     config: VettingConfig
-    snr_min: float
+    sde_min: float
 
     def execute(self) -> dict[str, Any]:
-        inputs = load_inputs(self.dossier, self.snr_min)
+        inputs = load_inputs(self.dossier, self.sde_min)
         params = measure_params(self.config, None, None)
         runs = GateRunsData(runs=[run_gate(spec, 1, inputs, params, self.config) for spec in GATES])
         self.dossier.write_envelope(RUNS, self.meta.envelope(runs, self.dossier.reads))
@@ -114,7 +114,7 @@ class RunGate:
     dossier: Dossier
     meta: ToolMeta
     config: VettingConfig
-    snr_min: float
+    sde_min: float
 
     def execute(
         self, gate_id: str, duration_scale: float | None, window_durations: float | None
@@ -141,7 +141,7 @@ class RunGate:
         }
         same = next((r for r in mine if r.params == wanted), None)
         if same is None:
-            inputs = load_inputs(self.dossier, self.snr_min)
+            inputs = load_inputs(self.dossier, self.sde_min)
             same = run_gate(spec, len(mine) + 1, inputs, params, self.config)
             runs.append(same)
         data = GateRunsData(runs=runs)

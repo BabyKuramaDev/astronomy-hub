@@ -16,14 +16,14 @@ def _others(search: PeriodSearchData, chosen: str | None) -> list[Peak]:
 
 
 def signal_from_peak(
-    search: PeriodSearchData, peak_id: str, *, snr_min: float, min_transits: int
+    search: PeriodSearchData, peak_id: str, *, sde_min: float, min_transits: int
 ) -> SignalData:
     peak = search.peak(peak_id)
     if peak is None:
         known = ", ".join(p.id for p in search.peaks) or "none"
         raise SelectionError(f"unknown peak {peak_id!r} (peaks in search.json: {known})")
-    if peak.snr < snr_min:
-        raise SelectionError(f"{peak_id} has SNR {peak.snr:.2f}, below snr_min {snr_min:g}")
+    if peak.sde < sde_min:  # the detection rule (M5 phase A); SNR is reported, not a threshold
+        raise SelectionError(f"{peak_id} has SDE {peak.sde:.2f}, below sde_min {sde_min:g}")
     if peak.n_transits < min_transits:
         raise SelectionError(
             f"{peak_id} has {peak.n_transits} transits, below min_transits {min_transits}"
@@ -35,6 +35,7 @@ def signal_from_peak(
         duration_hours=peak.duration_hours,
         depth_ppm=peak.depth_ppm,
         snr=peak.snr,
+        sde=peak.sde,
         n_transits=peak.n_transits,
         sectors=search.sectors,
         method=search.method,

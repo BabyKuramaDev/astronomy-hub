@@ -115,7 +115,7 @@ class SearchPeriod:
             "tic_id": self.meta.tic_id,
             "n_periods": outcome.n_periods,
             "period_range_days": [data.period_min_days, round(data.period_max_days, 4)],
-            "snr_min": self.config.snr_min,
+            "sde_min": self.config.sde_min,
             "inverted_snr_max": round(outcome.inverted_snr_max, 2),
             "stellar_density_solar": round(density, 4),
             "density_source": source,

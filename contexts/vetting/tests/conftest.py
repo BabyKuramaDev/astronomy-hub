@@ -114,6 +114,7 @@ def write_vetting_dossier(root: Path, **kwargs: object) -> Dossier:
         duration_hours=inputs.duration_hours,
         depth_ppm=inputs.depth_ppm,
         snr=inputs.snr,
+        sde=inputs.sde,
         n_transits=20,
         sectors=sectors,
         method="bls",

@@ -104,29 +104,31 @@ def gate_coverage(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOu
     )
 
 
-# 3 snr -----------------------------------------------------------------------------------
+# 3 detection -----------------------------------------------------------------------------
 
 
-def gate_snr(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
-    threshold = max(inputs.snr_min, inputs.inverted_snr_max)
-    above_min = inputs.snr >= inputs.snr_min
-    above_floor = inputs.snr > inputs.inverted_snr_max
-    if above_min and above_floor:
-        note = "SNR above snr_min and above the noise floor of the inverted curve"
-    elif not above_min:
-        note = f"SNR below snr_min ({inputs.snr_min:g})"
-    else:
-        note = (
-            f"SNR not above the noise floor: the inverted curve reaches "
-            f"{inputs.inverted_snr_max:.1f}, so a dip this strong can be noise"
+def gate_detection(inputs: GateInputs, params: MeasureParams, cfg: Any) -> GateOutcome:
+    """The detection rule: the signal's SDE reaches detection.sde_min. SNR and the
+    inverted-curve floor are reported as data, not thresholds (M5 phase A calibration)."""
+    info = {
+        "snr": _r(inputs.snr, 2),
+        "inverted_snr_max": _r(inputs.inverted_snr_max, 2),
+        "sde_min": inputs.sde_min,
+    }
+    if inputs.sde is None:
+        return GateOutcome(
+            "marginal",
+            None,
+            inputs.sde_min,
+            "signal.json has no SDE (written before M5): rerun select-peak",
+            info,
         )
-    return GateOutcome(
-        "pass" if above_min and above_floor else "fail",
-        _r(inputs.snr, 2),
-        _r(threshold, 2),
-        note,
-        {"snr_min": inputs.snr_min, "inverted_snr_max": _r(inputs.inverted_snr_max, 2)},
+    ok = inputs.sde >= inputs.sde_min
+    note = (
+        f"SDE {inputs.sde:.1f} {'reaches' if ok else 'is below'} sde_min {inputs.sde_min:g} "
+        f"(SNR {inputs.snr:.1f}, inverted-curve floor {inputs.inverted_snr_max:.1f}, for reference)"
     )
+    return GateOutcome("pass" if ok else "fail", _r(inputs.sde, 2), inputs.sde_min, note, info)
 
 
 # 4 holdout -------------------------------------------------------------------------------
@@ -720,7 +722,7 @@ class GateSpec:
 GATES: tuple[GateSpec, ...] = (
     GateSpec("catalog", gate_catalog, False),
     GateSpec("coverage", gate_coverage, False),
-    GateSpec("snr", gate_snr, False),
+    GateSpec("detection", gate_detection, False),
     GateSpec("holdout", gate_holdout, True),
     GateSpec("odd-even", gate_odd_even, True),
     GateSpec("secondary", gate_secondary, True),
