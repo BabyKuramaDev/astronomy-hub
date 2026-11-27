@@ -46,9 +46,49 @@ def test_alias(ratio: float, expected: str | None) -> None:
     ],
 )
 def test_compare(period: float, depth: float, verdict: str) -> None:
-    result = compare(True, period, depth, 20.0, 9.0, 2.0, 1000.0, TOL)
+    result = compare(
+        True,
+        period,
+        depth,
+        20.0,
+        9.0,
+        2.0,
+        1000.0,
+        TOL,
+        epoch=1000.0,
+        signal_epoch=1000.0,
+        signal_duration_hours=2.0,
+    )
     assert result.verdict == verdict
     assert (result.disagreements == ()) == (verdict == "reproduced")
+
+
+@pytest.mark.parametrize(
+    ("epoch", "verdict"),
+    [
+        (1000.03, "reproduced"),  # 0.36 durations off
+        (1020.0001, "reproduced"),  # ten periods later, the same transit times
+        (1001.0, "partial"),  # half a period off: another signal on the same period
+        (None, "partial"),  # no epoch to check
+    ],
+)
+def test_compare_checks_the_transit_times(epoch: float | None, verdict: str) -> None:
+    result = compare(
+        True,
+        2.0,
+        1000.0,
+        20.0,
+        9.0,
+        2.0,
+        1000.0,
+        TOL,
+        epoch=epoch,
+        signal_epoch=1000.0,
+        signal_duration_hours=2.0,
+    )
+    assert result.verdict == verdict
+    if verdict == "partial":
+        assert "other times" in result.disagreements[0]
 
 
 def test_compare_without_detection() -> None:
@@ -67,27 +107,45 @@ def write_raw(root_dir: Path, transit: Transit | None, seed: int = 3) -> None:
     entries = []
     for k, sector in enumerate((40, 41)):
         time, flux, err = light_curve(
-            start=1000.0 + 9.0 * k, days=8.0, noise_ppm=500.0, transit=transit,
-            trend_amplitude=0.002, seed=seed + k,
-        )  # fmt: skip
+            start=1000.0 + 9.0 * k,
+            days=8.0,
+            noise_ppm=500.0,
+            transit=transit,
+            trend_amplitude=0.002,
+            seed=seed + k,
+        )
         rel = f"lightcurve/s{sector:04d}.parquet"
         nan = np.full(time.size, np.nan)
         dossier.write_table(
             rel,
-            {"time_btjd": time, "flux": flux * 3e4, "flux_err": err * 3e4,
-             "centroid_col": nan, "centroid_row": nan},
-        )  # fmt: skip
+            {
+                "time_btjd": time,
+                "flux": flux * 3e4,
+                "flux_err": err * 3e4,
+                "centroid_col": nan,
+                "centroid_row": nan,
+            },
+        )
         entries.append(
             SectorLightcurve(
-                sector=sector, fits_file=f"lightcurve/s{sector}.fits", table_file=rel,
-                n_cadences=time.size, n_valid=time.size,
-                t_start_btjd=float(time[0]), t_end_btjd=float(time[-1]),
+                sector=sector,
+                fits_file=f"lightcurve/s{sector}.fits",
+                table_file=rel,
+                n_cadences=time.size,
+                n_valid=time.size,
+                t_start_btjd=float(time[0]),
+                t_end_btjd=float(time[-1]),
             )
-        )  # fmt: skip
+        )
     manifest = LightcurveSetData(
-        author="SPOC", exptime_s=120.0, flux_column="PDCSAP_FLUX", available_sectors=[40, 41],
-        selection_rule="longest_consecutive_run", max_sectors=4, sectors=entries,
-    )  # fmt: skip
+        author="SPOC",
+        exptime_s=120.0,
+        flux_column="PDCSAP_FLUX",
+        available_sectors=[40, 41],
+        selection_rule="longest_consecutive_run",
+        max_sectors=4,
+        sectors=entries,
+    )
     dossier.write_envelope(
         "lightcurve/manifest.json",
         meta(Context.ACQUISITION, "fetch-lightcurves").envelope(manifest, {}),
@@ -96,9 +154,17 @@ def write_raw(root_dir: Path, transit: Transit | None, seed: int = 3) -> None:
 
 def write_signal(root_dir: Path, period: float, depth: float) -> None:
     signal = SignalData(
-        detected=True, period_days=period, epoch_btjd=1000.4, duration_hours=2.0,
-        depth_ppm=depth, snr=30.0, n_transits=8, sectors=[40, 41], method="bls", other_peaks=[],
-    )  # fmt: skip
+        detected=True,
+        period_days=period,
+        epoch_btjd=1000.4,
+        duration_hours=2.0,
+        depth_ppm=depth,
+        snr=30.0,
+        n_transits=8,
+        sectors=[40, 41],
+        method="bls",
+        other_peaks=[],
+    )
     Dossier(root_dir).write_envelope(
         "signal.json", meta(Context.DETECTION, "select-peak").envelope(signal, {})
     )
@@ -129,6 +195,9 @@ def test_reproduce_finds_the_transit_without_reading_the_signal(
     review = Dossier(root(tmp_path)).read_envelope("review.json", ReviewFile).data
     assert review.verdict == "reproduced"
     assert review.rationale == "TLS agrees."
+    assert env.data.box_depth_ppm == pytest.approx(TRANSIT.depth_ppm, rel=0.2)
+    assert review.depth_ppm_independent == env.data.box_depth_ppm
+    assert abs(review.epoch_offset_durations or 9) < 0.5
 
 
 def test_reproduce_without_a_transit_finds_nothing(
@@ -142,13 +211,23 @@ def test_reproduce_without_a_transit_finds_nothing(
 def _reproduction(root_dir: Path, period: float | None, depth: float | None) -> None:
     detected = period is not None
     data = ReproductionData(
-        detrend_method="median", detrend_window_days=1.0, search_method="tls", sectors=[40],
-        period_min_days=0.5, period_max_days=7.0, detected=detected, sde_min=9.0,
-        period_days=period, epoch_btjd=1000.4 if detected else None,
-        duration_hours=2.0 if detected else None, depth_ppm=depth,
-        sde=30.0 if detected else 5.0, snr=20.0 if detected else None,
+        detrend_method="median",
+        detrend_window_days=1.0,
+        search_method="tls",
+        sectors=[40],
+        period_min_days=0.5,
+        period_max_days=7.0,
+        detected=detected,
+        sde_min=9.0,
+        period_days=period,
+        epoch_btjd=1000.4 if detected else None,
+        duration_hours=2.0 if detected else None,
+        depth_ppm=None if depth is None else 2 * depth,
+        sde=30.0 if detected else 5.0,
+        snr=20.0 if detected else None,
         n_transits=8 if detected else None,
-    )  # fmt: skip
+        box_depth_ppm=depth,  # TLS's depth_ppm (a model depth) is never compared
+    )
     Dossier(root_dir).write_envelope(
         "review/reproduction.json", meta(Context.REVIEW, "reproduce").envelope(data, {})
     )
@@ -159,9 +238,12 @@ def _reproduction(root_dir: Path, period: float | None, depth: float | None) -> 
     [(1.83, 3700.0, "reproduced"), (3.66, 3700.0, "partial"), (None, None, "not_reproduced")],
 )
 def test_conclude_rule(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], period: float | None,
-    depth: float | None, verdict: str,
-) -> None:  # fmt: skip
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    period: float | None,
+    depth: float | None,
+    verdict: str,
+) -> None:
     write_signal(root(tmp_path), 1.83, 3600.0)
     _reproduction(root(tmp_path), period, depth)
     assert run(tmp_path, "conclude", "--rationale", "r") == 0

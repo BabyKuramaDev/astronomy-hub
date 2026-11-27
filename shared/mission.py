@@ -228,6 +228,7 @@ class ReviewConfig(ContractModel):
     duration_grid_step: Annotated[float, Field(gt=1)]
     period_tolerance: PositiveFloat
     depth_tolerance: PositiveFloat
+    epoch_tolerance_durations: PositiveFloat
     alias_max_integer: Annotated[int, Field(ge=2)]
 
 

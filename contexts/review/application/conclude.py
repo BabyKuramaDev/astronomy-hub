@@ -31,17 +31,27 @@ class Conclude:
         if not signal.detected:
             raise InvalidInputError("signal.json has detected=false: there is nothing to compare")
         cfg = self.config
+        # Like with like: the box depth on the Reviewer's own curve, never TLS's model depth.
+        box = repro.box_depth_ppm
         result = compare(
             repro.detected,
             repro.period_days,
-            repro.depth_ppm,
+            box,
             repro.sde,
             repro.sde_min,
             signal.period_days,  # type: ignore[arg-type]
             signal.depth_ppm,  # type: ignore[arg-type]
-            Tolerances(cfg.period_tolerance, cfg.depth_tolerance, cfg.alias_max_integer),
+            Tolerances(
+                cfg.period_tolerance,
+                cfg.depth_tolerance,
+                cfg.alias_max_integer,
+                cfg.epoch_tolerance_durations,
+            ),
+            epoch=repro.epoch_btjd,
+            signal_epoch=signal.epoch_btjd,
+            signal_duration_hours=signal.duration_hours,
         )
-        depth = repro.depth_ppm if repro.depth_ppm is not None and repro.depth_ppm > 0 else None
+        depth = box if box is not None and box > 0 else None
         data = ReviewData(
             period_days_independent=repro.period_days,
             depth_ppm_independent=depth,
@@ -49,6 +59,7 @@ class Conclude:
             verdict=result.verdict,  # type: ignore[arg-type]
             period_ratio=result.period_ratio,
             depth_ratio=result.depth_ratio,
+            epoch_offset_durations=result.epoch_offset_durations,
             rationale=rationale.strip(),
         )
         self.dossier.write_envelope(REVIEW, self.meta.envelope(data, self.dossier.reads))
@@ -57,6 +68,9 @@ class Conclude:
             "verdict": result.verdict,
             "period_ratio": None if result.period_ratio is None else round(result.period_ratio, 6),
             "depth_ratio": None if result.depth_ratio is None else round(result.depth_ratio, 3),
+            "epoch_offset_durations": None
+            if result.epoch_offset_durations is None
+            else round(result.epoch_offset_durations, 3),
             "disagreements": list(result.disagreements),
             "file": REVIEW,
         }

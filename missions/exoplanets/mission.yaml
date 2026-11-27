@@ -132,7 +132,8 @@ review:
   duration_grid_step: 1.1
   # conclude: comparison with signal.json (spec, Reviewer prompt)
   period_tolerance: 0.001        # period within 0.1 percent
-  depth_tolerance: 0.2           # depth within 20 percent
+  depth_tolerance: 0.2           # box depth within 20 percent, each on its own curve
+  epoch_tolerance_durations: 0.5 # transits at the same times: within half a duration
   alias_max_integer: 10          # integer multiples and submultiples count as partial
 
 followup:

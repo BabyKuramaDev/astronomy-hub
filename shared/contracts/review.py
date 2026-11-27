@@ -30,6 +30,9 @@ class ReproductionData(ContractModel):
     sde: float | None
     snr: float | None
     n_transits: int | None
+    # Box depth on the Reviewer's curve with its own period, epoch and duration: the same
+    # quantity as signal.json's depth (TLS's depth is a model depth, not comparable).
+    box_depth_ppm: float | None = None
 
     @model_validator(mode="after")
     def _fields_match_detected(self) -> Self:
@@ -46,7 +49,9 @@ class ReviewData(ContractModel):
     disagreements: list[NonEmptyStr]
     verdict: ReviewVerdict
     period_ratio: NonNegativeFloat | None  # independent / signal period
-    depth_ratio: NonNegativeFloat | None  # independent / signal depth
+    depth_ratio: NonNegativeFloat | None  # independent / signal box depth
+    # Independent transit nearest signal.json's epoch, minus that epoch, in signal durations.
+    epoch_offset_durations: float | None = None
     rationale: NonEmptyStr
 
     @model_validator(mode="after")

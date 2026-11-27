@@ -83,6 +83,7 @@ class Reproduce:
             sde=result.sde,
             snr=result.snr,
             n_transits=result.n_transits,
+            box_depth_ppm=result.box_depth_ppm,
         )
         self.dossier.write_envelope(REPRODUCTION, self.meta.envelope(data, self.dossier.reads))
         return {
@@ -94,6 +95,9 @@ class Reproduce:
             if result.duration_hours is None
             else round(result.duration_hours, 3),
             "depth_ppm": None if result.depth_ppm is None else round(result.depth_ppm, 1),
+            "box_depth_ppm": None
+            if result.box_depth_ppm is None
+            else round(result.box_depth_ppm, 1),
             "sde": None if result.sde is None else round(result.sde, 2),
             "sde_min": cfg.sde_min,
             "n_transits": result.n_transits,

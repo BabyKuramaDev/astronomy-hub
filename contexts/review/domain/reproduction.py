@@ -54,6 +54,7 @@ class Reproduction:
     n_transits: int | None
     period_max_days: float
     warnings: tuple[str, ...] = ()
+    box_depth_ppm: float | None = None  # box depth on this curve, with this period and epoch
 
 
 def clean(sectors: Sequence[RawSector], params: ReproductionParams) -> tuple[np.ndarray, ...]:
@@ -100,6 +101,25 @@ def bin_series(
     return tb, fb, eb
 
 
+def box_depth(
+    t: np.ndarray, f: np.ndarray, e: np.ndarray, period: float, epoch: float, duration_days: float
+) -> float | None:
+    """Weighted mean outside the box minus weighted mean inside it, as a box search measures
+    depth: the same quantity as signal.json's depth, on the Reviewer's own curve."""
+    phase = (t - epoch + 0.5 * period) % period - 0.5 * period
+    inside = np.abs(phase) <= 0.5 * duration_days
+    if not inside.any() or inside.all():
+        return None
+    w = 1.0 / np.where(e > 0, e, np.nan) ** 2
+    ok = np.isfinite(w) & np.isfinite(f)
+    w_in, w_out = w[inside & ok], w[~inside & ok]
+    if w_in.size == 0 or w_out.size == 0:
+        return None
+    mean_in = float(np.sum(w_in * f[inside & ok]) / np.sum(w_in))
+    mean_out = float(np.sum(w_out * f[~inside & ok]) / np.sum(w_out))
+    return (mean_out - mean_in) * 1e6
+
+
 def reproduce(sectors: Sequence[RawSector], params: ReproductionParams) -> Reproduction:
     from transitleastsquares import transitleastsquares  # numba: see clean()
 
@@ -142,4 +162,5 @@ def reproduce(sectors: Sequence[RawSector], params: ReproductionParams) -> Repro
         n_transits=int(r.distinct_transit_count),
         period_max_days=period_max,
         warnings=notes,
+        box_depth_ppm=box_depth(t, f, e, float(r.period), float(r.T0), float(r.duration)),
     )
